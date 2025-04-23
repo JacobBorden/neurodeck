@@ -1,14 +1,26 @@
-# Create an executable for running the tests
+# tests/CMakeLists.txt
+
+# Create the test executable
 add_executable(runTests
     test_main.cpp
-    test_sample.cpp  # Add more test files as you create them.
+    test_tokenize.cpp
+    test_dispatch.cpp
 )
 
-# Link the test executable against GoogleTest and your core library (and any other necessary libraries)
+# Include directories for headers
+target_include_directories(runTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/shell
+    ${CMAKE_SOURCE_DIR}/core
+)
+
+# Link against GoogleTest, shell, and core libraries
 target_link_libraries(runTests
-    PRIVATE gtest_main core
+    PRIVATE
+    gtest_main
+    shell
+    core
 )
 
-# Automatically discover and add tests to CTest
+# Discover and register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(runTests)
