@@ -19,6 +19,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Include subdirectories
 add_subdirectory(core)
 add_subdirectory(shell)
+add_subdirectory(desktop)
 # You can later add GUI/desktop environment modules:
 # add_subdirectory(gui)
 # add_subdirectory(ide)
