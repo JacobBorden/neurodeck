@@ -5,6 +5,14 @@ add_executable(runTests
     test_main.cpp
     test_tokenize.cpp
     test_dispatch.cpp
+    test_config_parser.cpp
+    test_file_io.cpp
+    test_command_registry.cpp
+    test_clear_command.cpp
+    test_exit_command.cpp
+    test_help_command.cpp
+    test_ls_command.cpp
+    test_open_command.cpp
 )
 
 # Include directories for headers
@@ -20,6 +28,15 @@ target_link_libraries(runTests
     shell
     core
 )
+
+# Add coverage options for GCC/Clang
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(STATUS "Compiler is GCC or Clang, adding coverage flags for runTests.")
+    target_compile_options(runTests PRIVATE --coverage)
+    target_link_libraries(runTests PRIVATE --coverage)
+else()
+    message(STATUS "Compiler is not GCC or Clang, coverage flags not added for runTests.")
+endif()
 
 # Discover and register tests with CTest
 include(GoogleTest)

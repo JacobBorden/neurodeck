@@ -1,7 +1,11 @@
 #include "command.hpp"
+#include "shell/command_registry.hpp" // Added this include
 #include <memory>
 #include <unordered_map>
 
+// These extern declarations are for the actual command factory functions.
+// When testing build_registry, we will provide mock implementations of these
+// in the test file itself, which the linker should pick.
 extern std::unique_ptr<Command> make_ls();
 extern std::unique_ptr<Command> make_clear();
 extern std::unique_ptr<Command> make_help();
