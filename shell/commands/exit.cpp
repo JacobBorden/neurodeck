@@ -1,14 +1,22 @@
-#include "command.hpp"
-#include <iostream>
+#include "shell/commands/exit.hpp" // Added this include
+#include "shell/command.hpp" // Base class is still needed
+#include <iostream> // Not strictly needed for current exit logic, but often included
 #include <memory>
+#include <vector>   // For std::vector in run method signature
 
-class ExitCommand : public Command {
-    public:
-    std::string name() const override {return "exit";}
-    void run(const std::vector<std::string>& args) override {
-       
-        
-    }
-};
+// Class definition is now in the header, ensure implementation matches
 
-std::unique_ptr<Command> make_exit(){ return std::make_unique<ExitCommand>(); }
+std::string ExitCommand::name() const {
+    return "exit";
+}
+
+void ExitCommand::run(const std::vector<std::string>& args) {
+    // Currently, the exit command does nothing directly in its run method.
+    // The actual exit logic is handled by the main shell loop when it sees this command.
+    // So, this method remains empty.
+    // (void)args; // Suppress unused parameter warning if desired
+}
+
+std::unique_ptr<Command> make_exit() {
+    return std::make_unique<ExitCommand>();
+}
