@@ -22,3 +22,4 @@ cmake --build .
 
 # Run all tests and show detailed output on failure.
 ctest --output-on-failure
+./bin/neurodeck_compositor
