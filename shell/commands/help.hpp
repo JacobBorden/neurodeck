@@ -1,5 +1,5 @@
 #pragma once
-#include "shell/command.hpp" 
+#include "../command.hpp" // Base class is still needed
 #include <memory>
 #include <string>
 #include <vector>

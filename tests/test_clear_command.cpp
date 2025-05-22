@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "shell/commands/clear.hpp" // Include the header for ClearCommand
+#include "../shell/commands/clear.hpp" // Include the header for ClearCommand
 #include <sstream> // For std::stringstream
 #include <iostream> // For std::cout, std::streambuf
 #include <vector>   // For std::vector

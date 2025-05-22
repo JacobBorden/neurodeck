@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "shell/commands/open.hpp" // Include the header for OpenCommand
+#include "../shell/commands/open.hpp" // Include the header for OpenCommand
 #include <vector>   // For std::vector
 #include <string>   // For std::string
 #include <memory>   // For std::unique_ptr

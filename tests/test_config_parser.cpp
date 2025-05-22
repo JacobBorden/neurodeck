@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "core/config_parser.hpp"
+#include "../core/config_parser.hpp"
 #include <fstream>
 #include <cstdio> // For std::remove
 

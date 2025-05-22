@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm> // For std::remove_if for trim
+#include <limits>
 
 namespace Neurodeck {
 

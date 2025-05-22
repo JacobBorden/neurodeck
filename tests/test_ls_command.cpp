@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "shell/commands/ls.hpp" // Include the header for LsCommand
+#include "../shell/commands/ls.hpp" // Include the header for LsCommand
 #include <sstream> // For std::stringstream
 #include <iostream> // For std::cout, std::streambuf
 #include <vector>   // For std::vector

@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "shell/commands/help.hpp" // Include the header for HelpCommand
+#include "../shell/commands/help.hpp" // Include the header for HelpCommand
 #include <sstream> // For std::stringstream
 #include <iostream> // For std::cout, std::streambuf
 #include <vector>   // For std::vector

@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include "shell/command.hpp"         // For Command base class
-#include "shell/command_registry.hpp" // For build_registry() declaration
+#include "../shell/command.hpp"         // For Command base class
+#include "../shell/command_registry.hpp" // For build_registry() declaration
 #include <string>
 #include <vector>
 #include <memory>      // For std::unique_ptr

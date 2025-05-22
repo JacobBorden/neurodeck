@@ -1,5 +1,5 @@
-#include "shell/commands/exit.hpp" // Added this include
-#include "shell/command.hpp" // Base class is still needed
+#include "exit.hpp" // Added this include
+#include "../command.hpp" // Base class is still needed
 #include <iostream> // Not strictly needed for current exit logic, but often included
 #include <memory>
 #include <vector>   // For std::vector in run method signature

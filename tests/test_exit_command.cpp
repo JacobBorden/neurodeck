@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "shell/commands/exit.hpp" // Include the header for ExitCommand
+#include "../shell/commands/exit.hpp" // Include the header for ExitCommand
 #include <vector>   // For std::vector
 #include <string>   // For std::string
 #include <memory>   // For std::unique_ptr

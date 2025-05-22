@@ -1,5 +1,5 @@
-#include "shell/commands/clear.hpp" // Added this include
-#include "shell/command.hpp" // Base class is still needed
+#include "clear.hpp" // Added this include
+#include "../command.hpp" // Base class is still needed
 #include <iostream>
 #include <memory>
 #include <vector> // For std::vector in run method signature

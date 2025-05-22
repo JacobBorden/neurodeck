@@ -1,5 +1,4 @@
 #include "command.hpp"
-#include "shell/command_registry.hpp" // Added this include
 #include <memory>
 #include <unordered_map>
 

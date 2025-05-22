@@ -5,7 +5,7 @@
 #include <vector> // Included for completeness, though not directly used by build_registry signature
 #include <memory> // For std::unique_ptr
 #include <unordered_map> // For std::unordered_map
-#include "shell/command.hpp" // For the Command base class
+#include "command.hpp" // For the Command base class
 
 // Forward declaration if Command is not fully defined via command.hpp for some reason
 // class Command; 

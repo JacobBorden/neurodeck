@@ -10,3 +10,4 @@ cmake_install.cmake
 # Temporary files
 *.log
 *.tmp
+.vscode/settings.json

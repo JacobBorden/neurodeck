@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "core/file_io.hpp"
+#include "../core/file_io.hpp"
 #include <fstream> // For manual file creation/verification if needed
 #include <cstdio>  // For std::remove
 

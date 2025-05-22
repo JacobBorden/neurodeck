@@ -1,5 +1,5 @@
-#include "shell/commands/open.hpp" // Added this include
-#include "shell/command.hpp" // Base class is still needed
+#include "open.hpp" // Added this include
+#include "../command.hpp" // Base class is still needed
 #include <iostream> // Not strictly needed for current open logic, but often included
 #include <memory>
 #include <vector>   // For std::vector in run method signature
