@@ -2,7 +2,7 @@
 
 **Project Overview**
 
-Neurodeck is a custom C++ based shell and desktop environment designed to replace traditional Bash. It features a modular command architecture, pluggable desktop components, and a planned AI-enabled hybrid IDE. The codebase is organized into reusable libraries (`core`, `shell`) and supports rapid build/test cycles via CMake and GoogleTest.
+Neurodeck is a custom C++ based shell and desktop environment designed to replace traditional Bash. It features a modular command architecture, pluggable desktop components, a Wayland/EGL compositor stub, and a planned AI-enabled hybrid IDE. The codebase is organized into reusable libraries (`core`, `shell`, `desktop`) and supports rapid build/test cycles via CMake and GoogleTest.
 
 ---
 
@@ -22,9 +22,10 @@ Neurodeck is a custom C++ based shell and desktop environment designed to replac
 
 - **Modular Command Shell**: Shell commands live in separate modules under `shell/commands/`, built as a static library.
 - **Custom Tokenizer**: `tokenize` function extracted into its own module for reuse and testing.
-- **CMake Build System**: Top-level and subdirectory CMake files orchestrate building `core`, `shell`, and test targets.
-- **Unit Testing with GoogleTest**: Automated tests cover tokenizer and command dispatch logic.
-- **Roadmap**: Plans for a Wayland compositor-based desktop environment and a graphical, vim-like IDE.
+- **CMake Build System**: Top-level and subdirectory CMake files orchestrate building `core`, `shell`, `desktop`, and test targets.
+- **Unit Testing with GoogleTest**: Automated tests cover tokenizer, command dispatch, all built-in commands, and core file/config utilities.
+- **Wayland/EGL Desktop Compositor Stub**: Early prototype for a custom Linux desktop environment using Wayland and OpenGL ES.
+- **Roadmap**: Plans for a graphical, vim-like IDE and AI-powered command suggestions.
 
 ---
 
@@ -65,6 +66,10 @@ neurodeck/                      # Top-level project root
 │   ├── test_main.cpp           # GoogleTest entrypoint
 │   ├── test_tokenize.cpp
 │   └── test_dispatch.cpp
+├── desktop/                    # Wayland/EGL compositor stub
+│   ├── CMakeLists.txt
+│   ├── compositor.cpp
+│   └── window.cpp
 └── build_and_test.sh           # Script to build & run tests
 ```
 

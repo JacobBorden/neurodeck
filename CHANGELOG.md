@@ -3,6 +3,8 @@
 All notable changes to the Neurodeck project will be documented in this file.
 
 ## [Unreleased]
+- **Added:** Wayland/EGL desktop compositor stub (`desktop/main.cpp`, `desktop/CMakeLists.txt`)
+- **Added:** Unit tests for all built-in shell commands and core file/config utilities
 - **Planned:** Desktop environment stub integration
 - **Planned:** AI-enabled command suggestions module
 - **Planned:** Graphical IDE prototype
