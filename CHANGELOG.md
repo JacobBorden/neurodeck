@@ -3,6 +3,24 @@
 All notable changes to the Neurodeck project will be documented in this file.
 
 ## [Unreleased]
+- **Refactored & Enhanced Core Shell and Command System:**
+  - Introduced `Neurodeck::CommandRegistry` for robust command management, replacing the old static registration.
+  - Standardized `Neurodeck::Command` interface (namespaced, added `description()` method).
+  - Updated all built-in commands to conform to the new interface and namespace.
+  - Improved shell I/O handling and error reporting in `shell/main.cpp`.
+- **Implemented Dynamic Plugin Architecture:**
+  - Added capability to load and unload commands dynamically from shared library plugins.
+  - Plugins must export `register_commands(Neurodeck::CommandRegistry*)` and `unregister_commands(Neurodeck::CommandRegistry*)`.
+  - Introduced `loadplugin` and `unloadplugin` shell commands.
+  - Created example `hello_plugin` and `echo_plugin`.
+- **Core API and Module Loading Documentation:**
+  - Added Doxygen-style comments to `core/config_parser.hpp`, `core/file_io.hpp`, and `shell/command_registry.hpp`.
+- **Test Suite Overhaul:**
+  - Refactored the entire test suite (`tests/`) to align with the new `CommandRegistry` architecture and namespaced commands.
+  - Ensured all tests compile and accurately reflect the current codebase.
+- **Build System:**
+  - Updated CMake configurations to support plugin building.
+  - Temporarily excluded the `desktop` subdirectory from builds to resolve unrelated compilation issues.
 - **Added:** Wayland/EGL desktop compositor stub (`desktop/main.cpp`, `desktop/CMakeLists.txt`)
 - **Added:** Unit tests for all built-in shell commands and core file/config utilities
 - **Planned:** Desktop environment stub integration
@@ -31,4 +49,3 @@ All notable changes to the Neurodeck project will be documented in this file.
 - Versions are in descending chronological order
 - Unreleased section for upcoming work
 -->
-

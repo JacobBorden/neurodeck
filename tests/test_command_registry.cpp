@@ -1,99 +1,149 @@
 #include "gtest/gtest.h"
-#include "../shell/command.hpp"         // For Command base class
-#include "../shell/command_registry.hpp" // For build_registry() declaration
+#include "command.hpp"         // For Neurodeck::Command base class
+#include "command_registry.hpp" // For Neurodeck::CommandRegistry
 #include <string>
 #include <vector>
 #include <memory>      // For std::unique_ptr
-#include <unordered_map> // For the registry type
+#include <algorithm>   // For std::sort, std::find
 
-// 1. StubCommand Implementation
-class StubCommand : public Command {
+namespace Neurodeck { // Encapsulate test utilities in the same namespace or a sub-namespace
+
+// 1. StubCommand Implementation (now part of Neurodeck namespace)
+class StubCommand : public Neurodeck::Command {
 public:
-    explicit StubCommand(std::string cmd_name) : name_(std::move(cmd_name)), ran_(false) {}
+    explicit StubCommand(std::string cmd_name, std::string cmd_desc = "A stub command.") 
+        : name_(std::move(cmd_name)), description_(std::move(cmd_desc)), ran_(false) {}
 
     std::string name() const override { return name_; }
+    std::string description() const override { return description_; } // Implemented
     void run(const std::vector<std::string>& args) override { 
         ran_ = true; 
-        // Optionally, store args if needed for more detailed tests
-        // last_args_ = args; 
+        last_args_ = args; 
     }
 
-    bool ran_ = false; // Public for easy inspection in tests
-    // std::vector<std::string> last_args_; // Example if args needed to be checked
+    bool ran_ = false; 
+    std::vector<std::string> last_args_; 
 
 private:
     std::string name_;
+    std::string description_;
 };
 
-// 2. Mock Factory Functions
-// These functions are declared as 'extern' in shell/command.cpp.
-// By defining them here, the linker will use these versions when
-// compiling and linking this test file into the runTests executable.
-std::unique_ptr<Command> make_ls() { 
-    return std::make_unique<StubCommand>("ls"); 
-}
-std::unique_ptr<Command> make_clear() { 
-    return std::make_unique<StubCommand>("clear"); 
-}
-std::unique_ptr<Command> make_help() { 
-    return std::make_unique<StubCommand>("help"); 
-}
-std::unique_ptr<Command> make_exit() { 
-    return std::make_unique<StubCommand>("exit"); 
-}
-std::unique_ptr<Command> make_open() { 
-    return std::make_unique<StubCommand>("open"); 
-}
+} // namespace Neurodeck
 
-// 3. Test Cases
+// Mock factory functions are no longer needed as we directly use CommandRegistry.
+
+// Test Fixture for CommandRegistry tests
 class CommandRegistryTest : public ::testing::Test {
 protected:
-    // You can add setup/teardown if needed, but for these tests,
-    // it might not be necessary.
+    Neurodeck::CommandRegistry registry_; // Each test gets a fresh registry
+
+    // You can add setup/teardown if needed
+    void SetUp() override {
+        // Potentially populate with some common stubs or clear state
+    }
 };
 
-TEST_F(CommandRegistryTest, BuildRegistryPopulatesCorrectly) {
-    auto registry = build_registry();
+TEST_F(CommandRegistryTest, RegisterAndGetCommand) {
+    auto cmd1 = std::make_unique<Neurodeck::StubCommand>("test_cmd_1", "Description 1");
+    Neurodeck::Command* cmd1_ptr = cmd1.get(); // Keep raw pointer for comparison if needed before move
+    
+    registry_.register_command(std::move(cmd1));
+    
+    Neurodeck::Command* retrieved_cmd = registry_.get_command("test_cmd_1");
+    ASSERT_NE(retrieved_cmd, nullptr);
+    EXPECT_EQ(retrieved_cmd->name(), "test_cmd_1");
+    EXPECT_EQ(retrieved_cmd->description(), "Description 1");
+    EXPECT_EQ(retrieved_cmd, cmd1_ptr); // Should be the same object
 
-    // Expected number of commands
-    const size_t expected_command_count = 5;
-    ASSERT_EQ(registry.size(), expected_command_count) 
-        << "Registry does not contain the expected number of commands.";
+    // Test getting a non-existent command
+    EXPECT_EQ(registry_.get_command("non_existent_cmd"), nullptr);
+}
 
-    // List of expected command names
-    const std::vector<std::string> expected_commands = {"ls", "clear", "help", "exit", "open"};
+TEST_F(CommandRegistryTest, RegisterDuplicateCommand) {
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("dup_cmd"));
+    // Attempting to register another command with the same name should be handled gracefully
+    // (e.g., logged error, original command preserved). The exact behavior depends on
+    // CommandRegistry::register_command implementation. Here, we check if original is preserved.
+    Neurodeck::Command* original_cmd = registry_.get_command("dup_cmd");
+    ASSERT_NE(original_cmd, nullptr);
 
-    for (const auto& cmd_name : expected_commands) {
-        auto it = registry.find(cmd_name);
-        ASSERT_NE(it, registry.end()) << "Command '" << cmd_name << "' not found in registry.";
-        ASSERT_NE(it->second, nullptr) << "Command '" << cmd_name << "' pointer is null.";
-        
-        // Check if the name() method of the command object matches
-        EXPECT_EQ(it->second->name(), cmd_name) 
-            << "Command '" << cmd_name << "' has incorrect name stored in the Command object.";
-        
-        // Optional: Cast to StubCommand to check specific stub properties if needed
-        // auto* stub_cmd = dynamic_cast<StubCommand*>(it->second.get());
-        // ASSERT_NE(stub_cmd, nullptr) << "Command '" << cmd_name << "' is not a StubCommand.";
+    // Create a new command with the same name but different description to distinguish
+    auto new_cmd_with_same_name = std::make_unique<Neurodeck::StubCommand>("dup_cmd", "New Description");
+    registry_.register_command(std::move(new_cmd_with_same_name));
+
+    Neurodeck::Command* current_cmd = registry_.get_command("dup_cmd");
+    ASSERT_NE(current_cmd, nullptr);
+    // Assuming the registry prevents overwriting, the description should be the original one.
+    // Or, if it allows overwriting, it should be "New Description".
+    // The current register_command logs an error and does not overwrite.
+    EXPECT_EQ(current_cmd->description(), "A stub command."); 
+    EXPECT_EQ(current_cmd, original_cmd); // Pointer should be the same as original
+}
+
+TEST_F(CommandRegistryTest, UnregisterCommand) {
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("cmd_to_unregister"));
+    ASSERT_NE(registry_.get_command("cmd_to_unregister"), nullptr);
+
+    registry_.unregister_command("cmd_to_unregister");
+    EXPECT_EQ(registry_.get_command("cmd_to_unregister"), nullptr);
+
+    // Test unregistering a non-existent command (should not throw)
+    EXPECT_NO_THROW(registry_.unregister_command("non_existent_cmd_for_unregister"));
+}
+
+TEST_F(CommandRegistryTest, GetAllCommandNames) {
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("cmd_a"));
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("cmd_b"));
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("cmd_c"));
+
+    std::vector<std::string> names = registry_.get_all_command_names();
+    ASSERT_EQ(names.size(), 3);
+    std::sort(names.begin(), names.end()); // Sort for consistent comparison
+
+    EXPECT_EQ(names[0], "cmd_a");
+    EXPECT_EQ(names[1], "cmd_b");
+    EXPECT_EQ(names[2], "cmd_c");
+}
+
+TEST_F(CommandRegistryTest, PopulateDefaultCommands) {
+    // This test now directly uses the real populate_default_commands
+    // and checks for the presence of actual default commands.
+    Neurodeck::populate_default_commands(registry_);
+
+    // Expected built-in commands (names only, as specific types are not StubCommand)
+    const std::vector<std::string> expected_builtins = {
+        "ls", "clear", "help", "exit", "open", "loadplugin", "unloadplugin"
+    };
+    
+    EXPECT_GE(registry_.get_all_command_names().size(), expected_builtins.size());
+
+    for (const auto& cmd_name : expected_builtins) {
+        Neurodeck::Command* cmd = registry_.get_command(cmd_name);
+        ASSERT_NE(cmd, nullptr) << "Built-in command '" << cmd_name << "' not found.";
+        EXPECT_EQ(cmd->name(), cmd_name);
+        EXPECT_FALSE(cmd->description().empty()) << "Command '" << cmd_name << "' should have a description.";
     }
 }
 
-TEST_F(CommandRegistryTest, StubCommandsAreUsed) {
-    auto registry = build_registry();
-    ASSERT_FALSE(registry.empty());
+TEST_F(CommandRegistryTest, CommandExecutionViaRegistry) {
+    // This test checks if a command retrieved from the registry can be run.
+    auto stub_cmd_instance = std::make_unique<Neurodeck::StubCommand>("run_test_cmd");
+    Neurodeck::StubCommand* raw_stub_ptr = stub_cmd_instance.get(); // Get raw pointer before move
+    
+    registry_.register_command(std::move(stub_cmd_instance));
+    
+    Neurodeck::Command* retrieved_cmd = registry_.get_command("run_test_cmd");
+    ASSERT_NE(retrieved_cmd, nullptr);
+    
+    // Cast back to StubCommand to check its 'ran_' flag.
+    // This assumes get_command returns the same type or a base that can be cast.
+    Neurodeck::StubCommand* casted_stub_cmd = dynamic_cast<Neurodeck::StubCommand*>(retrieved_cmd);
+    ASSERT_NE(casted_stub_cmd, nullptr); // Ensure it's actually our StubCommand type
 
-    for(const auto& pair : registry) {
-        ASSERT_NE(pair.second, nullptr);
-        // Try to cast to StubCommand. If it fails, it's not our stub.
-        StubCommand* stub = dynamic_cast<StubCommand*>(pair.second.get());
-        ASSERT_NE(stub, nullptr) << "Command '" << pair.first << "' is not a StubCommand. Mocks might not be linked correctly.";
-        
-        // Check initial state of 'ran_' flag
-        EXPECT_FALSE(stub->ran_) << "StubCommand '" << pair.first << "' should not have ran yet.";
-        
-        // Call run and check if 'ran_' flag is set
-        std::vector<std::string> empty_args;
-        stub->run(empty_args);
-        EXPECT_TRUE(stub->ran_) << "StubCommand '" << pair.first << "' did not set 'ran_' flag after run().";
-    }
+    EXPECT_FALSE(casted_stub_cmd->ran_) << "Command should not have run yet.";
+    std::vector<std::string> test_args = {"run_test_cmd", "arg1"};
+    retrieved_cmd->run(test_args); // Run the command
+    EXPECT_TRUE(casted_stub_cmd->ran_) << "Command 'ran_' flag not set after execution.";
+    EXPECT_EQ(casted_stub_cmd->last_args_, test_args);
 }

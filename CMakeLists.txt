@@ -19,7 +19,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Include subdirectories
 add_subdirectory(core)
 add_subdirectory(shell)
-add_subdirectory(desktop)
+# add_subdirectory(desktop) # Temporarily commented out to avoid wayland-server dependency
+add_subdirectory(plugins) # Add the plugins subdirectory
 # You can later add GUI/desktop environment modules:
 # add_subdirectory(gui)
 # add_subdirectory(ide)

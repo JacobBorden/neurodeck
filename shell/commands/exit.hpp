@@ -4,11 +4,16 @@
 #include <string>
 #include <vector>
 
-class ExitCommand : public Command {
+namespace Neurodeck { // Added namespace
+
+class ExitCommand : public Neurodeck::Command { // Added Neurodeck::
 public:
     std::string name() const override;
+    std::string description() const override; // Added
     void run(const std::vector<std::string>& args) override;
 };
 
-// Factory function
-std::unique_ptr<Command> make_exit();
+} // namespace Neurodeck
+
+// Factory function - Likely obsolete
+// std::unique_ptr<Neurodeck::Command> make_exit();
