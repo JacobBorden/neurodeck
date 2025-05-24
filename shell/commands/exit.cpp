@@ -1,22 +1,30 @@
-#include "exit.hpp" // Added this include
-#include "../command.hpp" // Base class is still needed
-#include <iostream> // Not strictly needed for current exit logic, but often included
-#include <memory>
-#include <vector>   // For std::vector in run method signature
+#include "exit.hpp"
+#include <iostream>
+#include <memory> // For std::make_unique
+#include <vector>
 
-// Class definition is now in the header, ensure implementation matches
+namespace Neurodeck { // Added namespace
 
 std::string ExitCommand::name() const {
     return "exit";
 }
 
-void ExitCommand::run(const std::vector<std::string>& args) {
-    // Currently, the exit command does nothing directly in its run method.
-    // The actual exit logic is handled by the main shell loop when it sees this command.
-    // So, this method remains empty.
-    // (void)args; // Suppress unused parameter warning if desired
+std::string ExitCommand::description() const {
+    return "Exits the Neurodeck shell.";
 }
 
-std::unique_ptr<Command> make_exit() {
-    return std::make_unique<ExitCommand>();
+void ExitCommand::run(const std::vector<std::string>& args) {
+    // The main shell loop handles the 'running = false' logic when 'exit' is detected by name.
+    // This run method can be used for any cleanup or messages before exiting.
+    (void)args; // Suppress unused parameter warning
+    std::cout << "Exiting Neurodeck shell..." << std::endl; // Optional: message from command itself
 }
+
+} // namespace Neurodeck
+
+// Factory function - Likely obsolete
+/*
+std::unique_ptr<Neurodeck::Command> make_exit() { // Added Neurodeck::
+    return std::make_unique<Neurodeck::ExitCommand>();
+}
+*/
