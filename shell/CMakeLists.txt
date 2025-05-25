@@ -10,6 +10,7 @@ add_library(shell STATIC
     commands/help.cpp
     commands/exit.cpp
     commands/open.cpp
+    commands/exec_command.cpp
 )
 
 # Public include directory for consumers of 'shell'
