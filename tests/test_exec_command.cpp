@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include "shell/commands/exec_command.hpp" // Adjust path as necessary
-#include "shell/command_registry.hpp" // For CommandRegistry, if needed for context, though exec_command can be tested directly
+#include "commands/exec_command.hpp" // Adjust path as necessary
+#include "command_registry.hpp" // For CommandRegistry, if needed for context, though exec_command can be tested directly
 #include <vector>
 #include <string>
 #include <iostream>
@@ -49,18 +49,16 @@ TEST_F(ExecCommandTest, EchoCommand) {
     std::string cout_output = captured_cout.str();
     std::string cerr_output = captured_cerr.str();
     
-    // Expect "Stdout:
-Hello World
-"
-    // The "Stdout:
-" prefix and trailing newline are from ExecCommand's formatting
+    // Expect "Stdout:\nHello World\n"
+    // The "Stdout:\n" prefix and trailing newline are from ExecCommand's formatting.
     // The actual echo command adds a newline too.
     EXPECT_NE(cout_output.find("Hello World"), std::string::npos);
-    EXPECT_TRUE(cerr_output.find("Stderr:") == std::string::npos || captured_cerr.str().find("Command exited with status") != std::string::npos); // Allow exit status message
+    // Allow exit status message in stderr, but Stderr: should not appear for echo
+    EXPECT_TRUE(cerr_output.find("Stderr:") == std::string::npos || cerr_output.find("Command exited with status") != std::string::npos); // Allow exit status message
 }
 
 TEST_F(ExecCommandTest, LsCommandExists) {
-    // This test assumes 'ls' exists and /tmp is readable.
+    // This test assumes 'ls' exists and / is readable.
     // It's a bit environment-dependent but common.
     runCommand({"exec", "ls", "/"}); // List root directory
     std::string cout_output = captured_cout.str();
@@ -76,14 +74,9 @@ TEST_F(ExecCommandTest, CommandNotFound) {
     
     // The error message from execvp (via child's stderr) should be captured.
     // It might also include "Command exited with status" if execvp failure leads to non-zero exit.
-    // Example: "Stderr:
-Failed to execute command '...': No such file or directory
-Command exited with status 1
-"
+    // Example: "Stderr:\nFailed to execute command '...': No such file or directory\nCommand exited with status 1\n"
     // Or, if child directly _exit(EXIT_FAILURE) after perror for execvp:
-    // "Stderr:
-Failed to execute command 'a_very_unlikely_command_to_exist_12345': No such file or directory
-"
+    // "Stderr:\nFailed to execute command 'a_very_unlikely_command_to_exist_12345': No such file or directory\n"
     // "Command exited with status 127" (common for command not found) or "Command exited with status 1" (if _exit(EXIT_FAILURE))
     EXPECT_TRUE(cerr_output.find("Failed to execute command") != std::string::npos || cerr_output.find("No such file or directory") != std::string::npos);
     EXPECT_TRUE(cerr_output.find("Command exited with status") != std::string::npos);

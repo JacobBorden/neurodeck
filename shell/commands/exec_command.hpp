@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shell/command.hpp" // Adjusted include path
+#include "../command.hpp" // Adjusted include path
 #include <string>
 #include <vector>
 
