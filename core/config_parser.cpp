@@ -77,12 +77,14 @@ int ConfigParser::get_int(const std::string& key, int default_value) const {
     auto it = data_.find(key);
     if (it != data_.end()) {
         try {
-            // Use std::stoll for wider range then check if it fits in int
-            long long long_val = std::stoll(it->second);
-            if (long_val >= std::numeric_limits<int>::min() && long_val <= std::numeric_limits<int>::max()) {
+            size_t pos = 0;
+            const std::string& val = it->second;
+            long long long_val = std::stoll(val, &pos);
+            // Only accept if the entire string was consumed (no trailing junk)
+            if (pos == val.size() && long_val >= std::numeric_limits<int>::min() && long_val <= std::numeric_limits<int>::max()) {
                 return static_cast<int>(long_val);
             }
-            // If out of int range, treat as conversion failure
+            // If not fully consumed or out of int range, treat as conversion failure
         } catch (const std::invalid_argument& ia) {
             // Not a valid integer string
         } catch (const std::out_of_range& oor) {

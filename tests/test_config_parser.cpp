@@ -85,9 +85,16 @@ TEST_F(ConfigParserTest, TestGetIntInvalidFormat) {
     Neurodeck::ConfigParser parser;
     ASSERT_TRUE(parser.load_file(temp_config_filename_));
 
-    EXPECT_EQ(parser.get_int("key_string", 123), 123);
-    EXPECT_EQ(parser.get_int("key_float", 456), 456);
-    EXPECT_EQ(parser.get_int("key_large", 789), 789); // std::stoll might parse then check range
+    int val1 = parser.get_int("key_string", 123);
+    int val2 = parser.get_int("key_float", 456);
+    int val3 = parser.get_int("key_large", 789);
+    std::cout << "get_int('key_string', 123) = " << val1 << std::endl;
+    std::cout << "get_int('key_float', 456) = " << val2 << std::endl;
+    std::cout << "get_int('key_large', 789) = " << val3 << std::endl;
+
+    EXPECT_EQ(val1, 123);
+    EXPECT_EQ(val2, 456);
+    EXPECT_EQ(val3, 789);
 }
 
 TEST_F(ConfigParserTest, TestCommentsAndEmptyLines) {
