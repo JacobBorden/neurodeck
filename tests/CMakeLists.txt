@@ -13,6 +13,7 @@ add_executable(runTests
     test_help_command.cpp
     test_ls_command.cpp
     test_open_command.cpp
+    test_exec_command.cpp
 )
 
 # Include directories for headers

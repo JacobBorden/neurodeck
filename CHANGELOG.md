@@ -23,6 +23,7 @@ All notable changes to the Neurodeck project will be documented in this file.
   - Temporarily excluded the `desktop` subdirectory from builds to resolve unrelated compilation issues.
 - **Added:** Wayland/EGL desktop compositor stub (`desktop/main.cpp`, `desktop/CMakeLists.txt`)
 - **Added:** Unit tests for all built-in shell commands and core file/config utilities
+- **Added:** `exec` command: Allows execution of external system commands (e.g., `/bin/ls`, commands in `$PATH`) and captures their `stdout` and `stderr`. Usage: `exec <command> [args...]`.
 - **Planned:** Desktop environment stub integration
 - **Planned:** AI-enabled command suggestions module
 - **Planned:** Graphical IDE prototype

@@ -128,6 +128,29 @@ In the REPL, try commands like:
 - `unloadplugin <path/to/plugin.[so|dll]>` — Unloads a plugin.
 - `exit` — Quit the shell
 
+### `exec` Command
+
+The `exec` command allows you to run external system programs and scripts directly from the shell. It captures and displays the standard output (`stdout`) and standard error (`stderr`) of the executed command.
+
+**Usage:**
+```
+exec <command-to-run> [argument1] [argument2] ...
+```
+
+**Example:**
+To list files in the `/tmp` directory:
+```
+neurodeck> exec ls -l /tmp
+Stdout:
+total 0
+drwxrwxrwt 2 root root 60 Mar 21 10:00 some_dir
+... (output from ls) ...
+
+Stderr:
+... (any errors from ls) ...
+```
+(Note: The exact output format for stdout/stderr might vary slightly based on implementation details of the command display).
+
 ---
 
 ## Plugin Development
