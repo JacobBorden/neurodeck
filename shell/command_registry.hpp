@@ -46,6 +46,7 @@ public:
      * Initializes an empty command registry, ready to have commands registered.
      */
     CommandRegistry();
+    virtual ~CommandRegistry() = default;
 
     /**
      * @brief Registers a command with the registry.
@@ -111,7 +112,7 @@ public:
      *         false otherwise (e.g., file not found, symbol not found, or other error).
      * @note Logs errors to `std::cerr` on failure.
      */
-    bool load_plugin(const std::string& plugin_path);
+    virtual bool load_plugin(const std::string& plugin_path);
 
     /**
      * @brief Unloads a previously loaded plugin.
@@ -127,7 +128,7 @@ public:
      *         (e.g., plugin not found in loaded list, error during unload).
      * @note Logs errors to `std::cerr` on failure.
      */
-    bool unload_plugin(const std::string& plugin_path);
+    virtual bool unload_plugin(const std::string& plugin_path);
 
 private:
     /// @brief The core storage for commands. Maps command names (string) to
