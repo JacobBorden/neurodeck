@@ -67,6 +67,14 @@ target_link_libraries(shell
     PUBLIC core
 )
 
+if(ENABLE_COVERAGE)
+  if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG)
+    message(STATUS "Applying --coverage to shell library target using set_property.")
+    set_property(TARGET shell APPEND_STRING PROPERTY COMPILE_FLAGS " --coverage")
+    set_property(TARGET shell APPEND_STRING PROPERTY LINK_FLAGS " --coverage")
+  endif()
+endif()
+
 # Build the shell executable
 add_executable(neurodeck_shell
     main.cpp

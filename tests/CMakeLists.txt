@@ -14,6 +14,8 @@ add_executable(runTests
     test_ls_command.cpp
     test_open_command.cpp
     test_exec_command.cpp
+    test_load_plugin_command.cpp
+    test_unload_plugin_command.cpp
 )
 
 # Include directories for headers

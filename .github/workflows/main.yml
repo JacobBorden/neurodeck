@@ -1,0 +1,59 @@
+name: C++ CI
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ gcc clang-tidy cppcheck valgrind lcov
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Run Tests
+      run: |
+        cd build
+        ctest --output-on-failure
+        cd ..
+
+    - name: Static Analysis (Cppcheck)
+      run: cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --project=build/compile_commands.json .
+
+    - name: Static Analysis (Clang-Tidy)
+      run: |
+        find . -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy -p build --warnings-as-errors=*
+
+    - name: Generate Coverage Report (LCOV)
+      run: |
+        lcov --capture --directory . --output-file coverage.info --rc lcov_branch_coverage=1
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info # Remove system library coverage
+        lcov --remove coverage.info '*/tests/*' --output-file coverage.info # Remove test code coverage
+        lcov --list coverage.info # Optional: display coverage summary in logs
+
+    - name: Check Code Coverage Threshold
+      run: |
+        python scripts/check_coverage.py coverage.info 80 core/ shell/
+
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # Repository secret
+        files: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        verbose: true

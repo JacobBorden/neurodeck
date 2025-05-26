@@ -3,6 +3,23 @@ cmake_minimum_required(VERSION 3.10)
 # Project Name and Version
 project(Neurodeck VERSION 0.1 LANGUAGES CXX)
 
+option(ENABLE_COVERAGE "Enable code coverage" OFF) # Ensure this is here or use existing one
+
+if(ENABLE_COVERAGE)
+  if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG)
+    message(STATUS "Coverage enabled. Modifying CMAKE_CXX_FLAGS_DEBUG and CMAKE_C_FLAGS_DEBUG.")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} --coverage")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} --coverage") # For executables
+    # Also ensure global flags have it, though build type flags are often more specific
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage") 
+  else()
+    message(WARNING "Coverage is not supported for this compiler.")
+  endif()
+endif()
+
 # Set the C++ standard (using C++17 as a baseline)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -109,6 +109,59 @@ cmake --build .
 
 Executables will be placed in `build/bin/`, and plugins typically in `build/plugins/`.
 
+### Continuous Integration (CI)
+
+This project uses GitHub Actions for Continuous Integration. The CI pipeline is defined in `.github/workflows/main.yml` and automatically triggers on pushes and pull requests to the `main` and `development` branches. The CI pipeline performs the following checks:
+
+1.  **Build:** Compiles the project on an Ubuntu environment.
+2.  **Unit Tests:** Executes all unit tests using CTest.
+3.  **Static Analysis:**
+    *   Runs Cppcheck for static analysis.
+    *   Runs Clang-Tidy for further static analysis and style checks.
+4.  **Code Coverage:**
+    *   Generates a code coverage report using gcov/lcov.
+    *   Uploads the report to Codecov.
+    *   **Note:** There is currently a known issue with the CMake configuration that prevents accurate coverage measurement for the `core` and `shell` libraries. This is being investigated. Once resolved, the CI will enforce a minimum of 80% code coverage for these components.
+
+### Running Tests Locally
+
+The `./build_and_test.sh` script is the recommended way to build and run all tests.
+
+Alternatively, if you have already built the project (e.g., by running `cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON` and `cmake --build build`), you can run tests directly from the build directory:
+
+```bash
+cd build
+ctest --output-on-failure
+```
+
+### Code Coverage Locally
+
+To generate a local code coverage report (assuming the CMake coverage generation issue is resolved):
+
+1.  Ensure CMake is configured with coverage enabled:
+    ```bash
+    cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+    ```
+2.  Build the project:
+    ```bash
+    cmake --build build
+    ```
+3.  Run tests to generate coverage data:
+    ```bash
+    cd build && ctest && cd ..
+    ```
+4.  Generate the LCOV report:
+    ```bash
+    lcov --capture --directory build --output-file coverage.info --base-directory . --rc lcov_branch_coverage=1
+    lcov --remove coverage.info '/usr/*' 'tests/*' 'plugins/*' 'desktop/*' 'build/_deps/*' --output-file coverage.info
+    ```
+5.  You can view the report by generating HTML output:
+    ```bash
+    genhtml coverage.info --output-directory out_coverage_report --rc lcov_branch_coverage=1
+    ```
+    Then open `out_coverage_report/index.html` in a browser.
+    Or, use the script `scripts/check_coverage.py coverage.info 80 core/ shell/` to check coverage percentages for specific directories.
+
 ---
 
 ## Usage
@@ -223,6 +276,12 @@ Neurodeck supports dynamically loaded plugins (shared libraries) that can regist
 5. Submit a pull request
 
 Please follow the existing code style and commit message conventions.
+
+### Testing and Code Coverage
+
+-   Please ensure that new features or bug fixes include appropriate unit tests.
+-   All tests must pass for a pull request to be considered.
+-   We aim for at least 80% code coverage for the `core` and `shell` libraries. While the tooling for accurate measurement is currently being fixed, please write tests with this goal in mind. New commands or significant modules should be accompanied by tests.
 
 ---
 
