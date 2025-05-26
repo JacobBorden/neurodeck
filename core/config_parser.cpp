@@ -38,7 +38,7 @@ bool ConfigParser::load_file(const std::string& filename) {
         // A more robust parser might need to be context-aware (e.g. '#' in quoted strings)
         size_t comment_char_pos = line.find('#');
         if (comment_char_pos != std::string::npos) {
-            line = line.substr(0, comment_char_pos);
+            line.resize(comment_char_pos);
         }
         
         line = trim_whitespace(line);
