@@ -129,7 +129,6 @@ TEST_F(CommandRegistryTest, PopulateDefaultCommands) {
 TEST_F(CommandRegistryTest, CommandExecutionViaRegistry) {
     // This test checks if a command retrieved from the registry can be run.
     auto stub_cmd_instance = std::make_unique<Neurodeck::StubCommand>("run_test_cmd");
-    Neurodeck::StubCommand* raw_stub_ptr = stub_cmd_instance.get(); // Get raw pointer before move
     
     registry_.register_command(std::move(stub_cmd_instance));
     
