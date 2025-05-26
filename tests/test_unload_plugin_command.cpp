@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include "shell/commands/unload_plugin_command.hpp" // Adjust path
-#include "shell/command_registry.hpp" // Adjust path
+#include "commands/unload_plugin_command.hpp" // Adjust path
+#include "command_registry.hpp" // Adjust path
 #include <sstream>
 #include <iostream>
 
