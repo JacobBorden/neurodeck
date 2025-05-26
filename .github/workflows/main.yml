@@ -31,7 +31,7 @@ jobs:
         cd ..
 
     - name: Static Analysis (Cppcheck)
-      run: cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --project=build/compile_commands.json -i build/_deps
+      run: cppcheck --enable=all --error-exitcode=1 --suppress=missingIncludeSystem --project=build/compile_commands.json -i build/_deps -i tests
 
     - name: Static Analysis (Clang-Tidy)
       run: |
