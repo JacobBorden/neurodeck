@@ -44,6 +44,9 @@ jobs:
         lcov --remove coverage.info '*/tests/*' --output-file coverage.info # Remove test code coverage
         lcov --list coverage.info # Optional: display coverage summary in logs
 
+    - name: Normalize coverage paths
+      run: sed -i "s|SF:$PWD/|SF:|g" coverage.info
+
     - name: Check Code Coverage Threshold
       run: |
         python scripts/check_coverage.py coverage.info 80 core/ shell/
