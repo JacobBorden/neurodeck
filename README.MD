@@ -204,6 +204,47 @@ Stderr:
 ```
 (Note: The exact output format for stdout/stderr might vary slightly based on implementation details of the command display).
 
+### `lua` Command
+
+The `lua` command allows you to execute Lua scripts directly from the Neurodeck shell. This provides a powerful way to perform scripting tasks, manipulate data, or interact with shell functionality (if exposed to Lua).
+
+**Usage:**
+```
+lua "<lua_code_string>"
+```
+
+**Examples:**
+
+- Print a simple message:
+  ```
+  neurodeck> lua "print('Hello, Lua!')"
+  Hello, Lua!
+  ```
+
+- Perform calculations:
+  ```
+  neurodeck> lua "x = 10; y = 20; print(x + y)"
+  30
+  ```
+
+- Use standard Lua libraries (like `math`, `string`, `table`):
+  ```
+  neurodeck> lua "print(string.upper('test'))"
+  TEST
+  neurodeck> lua "print(math.sqrt(16))"
+  4
+  ```
+
+- Interact with the shell (example using a hypothetical `shell.run()` function):
+  The Lua environment within Neurodeck has access to a special function `shell.run(command_string)` which allows it to execute other shell commands.
+  ```
+  neurodeck> lua "shell.run('ls')" 
+  -- This would then display the output of the 'ls' command
+  ```
+  *(Note: The exact output of `shell.run()` will appear as if the command was typed directly into the shell.)*
+
+The Lua execution environment includes the standard Lua base library, `package`, `coroutine`, `string`, `table`, `math`, `io`, and `os` libraries. Errors from Lua execution will be printed to the shell's standard error output.
+
 ---
 
 ## Plugin Development

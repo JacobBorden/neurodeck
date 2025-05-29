@@ -39,7 +39,7 @@ namespace Neurodeck
         bool executeString(const std::string &luaCode);
 
         // Getter for the lua_State (use with caution)
-        lua_State *state() noexcept { return L_.get(); }
+        lua_State *state() noexcept;
 
     private:
         struct LuaCloser

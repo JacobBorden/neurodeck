@@ -11,6 +11,7 @@ add_library(shell STATIC
     commands/exit.cpp
     commands/open.cpp
     commands/exec_command.cpp
+    commands/lua_command.cpp
 )
 
 # Public include directory for consumers of 'shell'

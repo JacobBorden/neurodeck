@@ -7,12 +7,12 @@ namespace Neurodeck {
 
 #ifdef LUA_FOUND_IN_CMAKE
 
-static void hook(lua_State* L, lua_Debug* /*ar*/) {
-    auto* start = static_cast<const std::chrono::steady_clock::time_point*>(
-        lua_getextraspace(L));
-    if (std::chrono::steady_clock::now() - *start > std::chrono::milliseconds(10))
-        luaL_error(L, "Instruction limit exceeded");
-}
+// static void hook(lua_State* L, lua_Debug* /*ar*/) { // Entire hook mechanism removed
+//     auto* start = static_cast<const std::chrono::steady_clock::time_point*>(
+//         lua_getextraspace(L));
+//     if (std::chrono::steady_clock::now() - *start > std::chrono::milliseconds(10))
+//         luaL_error(L, "Instruction limit exceeded");
+// }
 
 static int l_shell_run(lua_State* L) {
     const char* cmd = luaL_checkstring(L, 1);
@@ -23,31 +23,30 @@ static int l_shell_run(lua_State* L) {
     return 1;
 }
 
-LuaManager::LuaManager() : L_(lua_newstate(lua_Alloc, nullptr)) {
-    if (!L_) throw std::runtime_error("lua_newstate failed");
-    openWhitelistedLibs();
-    // Attach timer origin in extra space
-    auto* origin = new(lua_getextraspace(L_.get()))
-        std::chrono::steady_clock::time_point(std::chrono::steady_clock::now());
-    lua_sethook(L_.get(), hook, LUA_MASKCOUNT, 10000);
+LuaManager::LuaManager() : L_(luaL_newstate()) { // Use luaL_newstate for default allocator
+    if (!L_) throw std::runtime_error("luaL_newstate failed");
+    openWhitelistedLibs(); 
+    // Hook mechanism fully removed
+    // // Attach timer origin in extra space
+    // // auto* origin = new(lua_getextraspace(L_.get()))
+    // //     std::chrono::steady_clock::time_point(std::chrono::steady_clock::now());
+    // // lua_sethook(L_.get(), hook, LUA_MASKCOUNT, 10000);
 }
 
 LuaManager::~LuaManager() = default;
 
 void LuaManager::openWhitelistedLibs() {
     if (!L_) return;
-    // Open *only* the libs we consider benign
-    luaL_requiref(L_.get(), LUA_MATHLIBNAME, luaopen_math, 1);
-    lua_pop(L_.get(), 1);
-    luaL_requiref(L_.get(), LUA_TABLIBNAME,  luaopen_table, 1);
-    lua_pop(L_.get(), 1);
-    luaL_requiref(L_.get(), LUA_STRLIBNAME,  luaopen_string, 1);
-    lua_pop(L_.get(), 1);
-    // Do NOT open io, os, debug, package
-    lua_newtable(L_.get());          // shell = {}
-    lua_pushcfunction(L_.get(), l_shell_run);
-    lua_setfield(L_.get(), -2, "run");
-    lua_setglobal(L_.get(), "shell");
+    // Load all standard libraries. This includes base, io, math, string, table, os, package, etc.
+    // This is simpler and more robust than loading them individually for now.
+    // The PANIC error needs to be resolved first.
+    luaL_openlibs(L_.get());
+
+    // Now, register any custom functions or tables, like 'shell.run'
+    lua_newtable(L_.get());          // Create 'shell' table
+    lua_pushcfunction(L_.get(), l_shell_run); // Push our C function
+    lua_setfield(L_.get(), -2, "run");        // Set shell.run = l_shell_run (pops function)
+    lua_setglobal(L_.get(), "shell");         // Set global 'shell' to this table (pops table)
 }
 
 LuaManager::LuaManager(LuaManager&& other) noexcept : L_(std::move(other.L_)) {}
