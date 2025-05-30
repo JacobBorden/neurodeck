@@ -18,6 +18,7 @@
 #include "commands/load_plugin_command.hpp"
 #include "commands/unload_plugin_command.hpp"
 #include "commands/exec_command.hpp"
+#include "commands/lua_command.hpp" // Added for LuaCommand
 // Note: If the ChatCommand is also a default command, its header should be included here.
 // #include "commands/chat_command.hpp"
 
@@ -81,6 +82,7 @@ void populate_default_commands(CommandRegistry& registry) {
     registry.register_command(std::make_unique<LoadPluginCommand>(registry));   // Added
     registry.register_command(std::make_unique<UnloadPluginCommand>(registry)); // Added
     registry.register_command(std::make_unique<ExecCommand>());
+    registry.register_command(std::make_unique<LuaCommand>()); // Added for LuaCommand
     // If ChatCommand is a default command, register it here:
     // registry.register_command(std::make_unique<ChatCommand>());
 }

@@ -16,7 +16,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake g++ gcc clang-tidy cppcheck valgrind lcov libwayland-dev libegl1-mesa-dev
+        sudo apt-get install -y cmake g++ gcc clang-tidy cppcheck valgrind lcov libwayland-dev libegl1-mesa-dev liblua5.4-dev
 
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -45,7 +45,7 @@ jobs:
         lcov --list coverage.info # Optional: display coverage summary in logs
 
     - name: Normalize coverage paths
-      run: sed -i "s|SF:$PWD/|SF:|g" coverage.info
+      run: sed -i "s|SF:${{ github.workspace }}/|SF:|g" coverage.info
 
     - name: Check Code Coverage Threshold
       run: |

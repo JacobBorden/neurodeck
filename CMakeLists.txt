@@ -33,6 +33,25 @@ endif()
 # Define output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Find Lua
+find_package(Lua)
+if(LUA_FOUND)
+    # Note: target_include_directories and target_link_libraries are preferred for specific targets.
+    # However, if Lua headers/libs are needed by multiple targets (core, shell, potentially plugins),
+    # using include_directories and link_libraries at this scope can be simpler,
+    # or we add them to an INTERFACE library that other targets link to.
+    # For now, let's make them available globally for simplicity as core and shell will need them.
+    include_directories(${LUA_INCLUDE_DIR})
+    # LUA_LIBRARIES will be used in core/CMakeLists.txt target_link_libraries
+    message(STATUS "Lua found: TRUE, Version: ${LUA_VERSION_STRING}")
+    message(STATUS "LUA_INCLUDE_DIR: ${LUA_INCLUDE_DIR}")
+    message(STATUS "LUA_LIBRARIES: ${LUA_LIBRARIES}")
+    # Add a compile definition to indicate Lua is available
+    add_compile_definitions(LUA_FOUND_IN_CMAKE)
+else()
+    message(WARNING "Lua not found. Lua-dependent features will be disabled/stubbed.")
+endif()
+
 # Include subdirectories
 add_subdirectory(core)
 add_subdirectory(shell)
@@ -79,16 +98,17 @@ if(BUILD_TESTING)
         # ${CMAKE_BINARY_DIR}/tests seems like a reasonable base for .gcno and .gcda files.
         # However, .gcno files are typically alongside object files.
         # Let's assume the build system places them within a subdirectory for the runTests target.
-        # The base directory for coverage data (where .gcno files are)
-        set(COVERAGE_DATA_DIR ${CMAKE_BINARY_DIR}/tests/CMakeFiles/runTests.dir)
+        # The base directory for lcov to scan for .gcno and .gcda files.
+        # Pointing to CMAKE_BINARY_DIR allows it to scan all compiled subprojects.
+        set(COVERAGE_DATA_DIR ${CMAKE_BINARY_DIR})
         # Output directory for HTML report, relative to CMAKE_BINARY_DIR
         set(COVERAGE_HTML_DIR ${CMAKE_BINARY_DIR}/coverage_html)
         set(COVERAGE_INFO_FILE ${CMAKE_BINARY_DIR}/coverage.info)
         set(COVERAGE_INFO_FILTERED_FILE ${CMAKE_BINARY_DIR}/coverage_filtered.info)
 
         add_custom_target(coverage_report
-            COMMAND ${LCOV_EXECUTABLE} --capture --directory ${COVERAGE_DATA_DIR} --output-file ${COVERAGE_INFO_FILE} --rc lcov_branch_coverage=1
-            COMMAND ${LCOV_EXECUTABLE} --remove ${COVERAGE_INFO_FILE} "/usr/*" --output-file ${COVERAGE_INFO_FILTERED_FILE} --rc lcov_branch_coverage=1
+            COMMAND ${LCOV_EXECUTABLE} --capture --directory ${COVERAGE_DATA_DIR} --output-file ${COVERAGE_INFO_FILE} --rc lcov_branch_coverage=1 --ignore-errors mismatch,source
+            COMMAND ${LCOV_EXECUTABLE} --remove ${COVERAGE_INFO_FILE} "/usr/include/*" --output-file ${COVERAGE_INFO_FILTERED_FILE} --rc lcov_branch_coverage=1
             COMMAND ${GENHTML_EXECUTABLE} ${COVERAGE_INFO_FILTERED_FILE} --output-directory ${COVERAGE_HTML_DIR} --branch-coverage --legend
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
             COMMENT "Generating LCOV code coverage report in ${COVERAGE_HTML_DIR}"
