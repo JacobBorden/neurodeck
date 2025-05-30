@@ -47,9 +47,6 @@ jobs:
     - name: Normalize coverage paths
       run: sed -i "s|SF:$PWD/|SF:|g" coverage.info
 
-    - name: Normalize LCOV paths to project root
-      run: sed -i "s|SF:/home/runner/work/neurodeck/neurodeck/|SF:|g" coverage.info
-
     - name: Check Code Coverage Threshold
       run: |
         python scripts/check_coverage.py coverage.info 80 core/ shell/
