@@ -45,7 +45,7 @@ jobs:
         lcov --list coverage.info # Optional: display coverage summary in logs
 
     - name: Normalize coverage paths
-      run: sed -i "s|SF:$PWD/|SF:|g" coverage.info
+      run: sed -i "s|SF:${{ github.workspace }}/|SF:|g" coverage.info
 
     - name: Check Code Coverage Threshold
       run: |
