@@ -12,7 +12,7 @@ private:
 public:
     LoadPluginCommand(CommandRegistry& registry) : registry_(registry) {}
     std::string name() const override { return "loadplugin"; }
-    std::string description() const override { return "Loads a plugin from a shared library file. Usage: loadplugin <path_to_plugin_file>"; }
+    std::string description() const override { return "Loads a plugin from a shared library (.so, .dll) or Lua script (.lua) file. Usage: loadplugin <path_to_plugin_file>"; }
     void run(const std::vector<std::string>& args) override {
         if (args.size() < 2) {
             std::cerr << "Usage: " << name() << " <path_to_plugin_file>" << std::endl;

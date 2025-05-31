@@ -16,18 +16,24 @@
 #include <unordered_map>
 #include <memory>
 #include <iostream> // For error logging
-#include <map>      // For std::map to store plugin handles
-
-// Platform-specific includes for dynamic library loading
-#if defined(_WIN32) || defined(_WIN64)
-    #include <windows.h>
-#else
-    #include <dlfcn.h>
-#endif
+#include <map>      // For std::map
+#include <memory>   // For std::unique_ptr (already included but good to be explicit)
+#include <string>   // For std::string (already included)
 
 #include "command.hpp" // For Neurodeck::Command base class
+// Forward declare core classes used in this header
+namespace Neurodeck {
+class Plugin;        // From ../core/plugin.hpp
+class LuaManager;    // From ../core/lua_manager.hpp
+class LuaPlugin;     // From ../core/lua_plugin.hpp
+// Note: Full definitions will be included in command_registry.cpp
+// PluginDeleter is now a .cpp detail, no longer needed for map type here.
+}
+
 
 namespace Neurodeck {
+
+// PluginPtr alias is removed as loaded_plugins_ will use std::unique_ptr<Neurodeck::Plugin> directly.
 
 /**
  * @brief Manages the registration, lifecycle, and retrieval of shell commands.
@@ -46,7 +52,7 @@ public:
      * Initializes an empty command registry, ready to have commands registered.
      */
     CommandRegistry();
-    virtual ~CommandRegistry() = default;
+    virtual ~CommandRegistry(); // Now needs to be implemented in .cpp
 
     /**
      * @brief Registers a command with the registry.
@@ -135,13 +141,10 @@ private:
     ///        `std::unique_ptr<Command>`, managing command lifecycle.
     std::unordered_map<std::string, std::unique_ptr<Command>> commands_;
 
-    /// @brief Stores handles to loaded plugins. Maps plugin path to the OS-specific library handle.
-    /// This is necessary to correctly unload plugins later.
-    #if defined(_WIN32) || defined(_WIN64)
-        std::map<std::string, HMODULE> loaded_plugin_handles_;
-    #else
-        std::map<std::string, void*> loaded_plugin_handles_;
-    #endif
+    /// @brief Stores loaded plugins (both C++ and Lua).
+    /// Maps plugin path to a unique_ptr of the base Plugin class.
+    /// The actual object can be a C++ plugin (with a custom deleter) or a Lua plugin.
+    std::map<std::string, std::unique_ptr<Neurodeck::Plugin>> loaded_plugins_;
 };
 
 /**

@@ -83,7 +83,7 @@ add_executable(neurodeck_shell
 
 # Link the executable with the shell library
 target_link_libraries(neurodeck_shell
-    PRIVATE shell
+    PRIVATE shell dl
 )
 
 # Optionally define installation rules

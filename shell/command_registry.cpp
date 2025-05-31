@@ -1,35 +1,91 @@
 #include "command_registry.hpp"
-#include <iostream> // For std::cerr
-#include <algorithm> // For std::remove (unused here, but was present)
-
-// Platform-specific includes for dynamic library loading are already in .hpp
-// but dlfcn.h might be needed here for RTLD_LAZY etc. if not transitively included.
-#if !(defined(_WIN32) || defined(_WIN64))
-    #include <dlfcn.h> // For RTLD_LAZY, dlerror
-#endif
+#include "../core/plugin.hpp" // Required for Neurodeck::Plugin
+#include "../core/lua_manager.hpp" // For LuaManager
+#include "../core/lua_plugin.hpp"   // For LuaPlugin
+#include <filesystem> // For path operations
+#include <iostream>
+#include <vector> // Required for destructor logic
+#include <dlfcn.h>  // For dlopen, dlsym, dlclose, dlerror
 
 // Assuming command implementations are in a 'commands' subdirectory
 // and each command has its own header.
-#include "commands/ls.hpp"      // Corrected: was ls_command.hpp
-#include "commands/clear.hpp"   // Corrected: was clear_command.hpp
-#include "commands/help.hpp"    // Corrected: was help_command.hpp
-#include "commands/exit.hpp"    // Corrected: was exit_command.hpp
-#include "commands/open.hpp"    // Corrected: was open_command.hpp
+#include "commands/ls.hpp"
+#include "commands/clear.hpp"
+#include "commands/help.hpp"
+#include "commands/exit.hpp"
+#include "commands/open.hpp"
 #include "commands/load_plugin_command.hpp"
 #include "commands/unload_plugin_command.hpp"
 #include "commands/exec_command.hpp"
-#include "commands/lua_command.hpp" // Added for LuaCommand
-// Note: If the ChatCommand is also a default command, its header should be included here.
-// #include "commands/chat_command.hpp"
-
+#include "commands/lua_command.hpp"
 
 namespace Neurodeck {
 
-// Define function pointer types for plugin functions
-typedef void (*register_commands_func_t)(Neurodeck::CommandRegistry*);
-typedef void (*unregister_commands_func_t)(Neurodeck::CommandRegistry*);
+// PluginDeleter definition
+struct PluginDeleter {
+    using DestroyPluginFunc = void (*)(Neurodeck::Plugin*);
+    DestroyPluginFunc destroy_func;
+    void* library_handle;
 
-CommandRegistry::CommandRegistry() = default;
+    PluginDeleter(DestroyPluginFunc func = nullptr, void* handle = nullptr)
+        : destroy_func(func), library_handle(handle) {}
+
+    void operator()(Neurodeck::Plugin* plugin) const {
+        if (plugin && destroy_func) {
+            // std::cout << "PluginDeleter: Destroying plugin via function pointer." << std::endl;
+            destroy_func(plugin);
+        } else if (plugin) {
+            // This case should ideally not happen for plugins loaded via this mechanism
+            // std::cerr << "PluginDeleter: Missing destroy_func for plugin, or plugin is null." << std::endl;
+        }
+        if (library_handle) {
+            // std::cout << "PluginDeleter: Closing library handle." << std::endl;
+            dlclose(library_handle);
+        }
+    }
+};
+
+} // namespace Neurodeck
+
+namespace { // Anonymous namespace for helper typedefs
+    using create_plugin_func = Neurodeck::Plugin* (*)();
+    using destroy_plugin_func = void (*)(Neurodeck::Plugin*);
+}
+
+namespace Neurodeck {
+
+CommandRegistry::CommandRegistry() {
+    // Default constructor
+}
+
+CommandRegistry::~CommandRegistry() {
+    std::cout << "CommandRegistry destructor: Shutting down and unloading plugins." << std::endl;
+    std::vector<std::string> plugin_paths;
+    // Collect paths to avoid iterator invalidation issues if shutdown modifies the map
+    for (const auto& pair : loaded_plugins_) {
+        plugin_paths.push_back(pair.first);
+    }
+
+    for (const std::string& path : plugin_paths) {
+        auto it = loaded_plugins_.find(path);
+        if (it != loaded_plugins_.end()) {
+            Neurodeck::Plugin* raw_plugin = it->second.get();
+            if (raw_plugin) {
+                std::string pluginName = raw_plugin->getName().empty() ? path : raw_plugin->getName();
+                std::cout << "Calling shutdown for plugin '" << pluginName << "' during CommandRegistry destruction." << std::endl;
+                try {
+                    raw_plugin->shutdown(this);
+                } catch (const std::exception& e) {
+                    std::cerr << "Error during shutdown of plugin " << pluginName << " in ~CommandRegistry: " << e.what() << std::endl;
+                } catch (...) {
+                    std::cerr << "Unknown error during shutdown of plugin " << pluginName << " in ~CommandRegistry." << std::endl;
+                }
+            }
+        }
+    }
+    loaded_plugins_.clear(); // This will trigger the PluginDeleter for each element
+    std::cout << "CommandRegistry destroyed." << std::endl;
+}
 
 void CommandRegistry::register_command(std::unique_ptr<Command> command) {
     if (!command) {
@@ -37,28 +93,21 @@ void CommandRegistry::register_command(std::unique_ptr<Command> command) {
         return;
     }
     std::string command_name = command->name();
-    if (commands_.find(command_name) != commands_.end()) {
+    if (commands_.count(command_name)) { // Use .count for clarity or .find as before
         std::cerr << "Error: Command '" << command_name << "' already registered. Ignoring new registration." << std::endl;
     } else {
         commands_[command_name] = std::move(command);
-        // std::cout << "Command '" << command_name << "' registered." << std::endl; // Optional: for debugging
     }
 }
 
 void CommandRegistry::unregister_command(const std::string& command_name) {
-    auto it = commands_.find(command_name);
-    if (it != commands_.end()) {
-        commands_.erase(it);
-        // std::cout << "Command '" << command_name << "' unregistered." << std::endl; // Optional: for debugging
-    } else {
-        // std::cerr << "Warning: Attempted to unregister non-existent command '" << command_name << "'." << std::endl; // Optional: for debugging
-    }
+    commands_.erase(command_name);
 }
 
 Command* CommandRegistry::get_command(const std::string& command_name) {
     auto it = commands_.find(command_name);
     if (it != commands_.end()) {
-        return it->second.get(); // Return raw pointer
+        return it->second.get();
     }
     return nullptr;
 }
@@ -72,139 +121,147 @@ std::vector<std::string> CommandRegistry::get_all_command_names() const {
     return names;
 }
 
+bool CommandRegistry::load_plugin(const std::string& path) {
+    std::filesystem::path plugin_fs_path(path);
+    std::string extension = plugin_fs_path.extension().string();
+
+    if (loaded_plugins_.count(path)) {
+        std::cerr << "Plugin (C++ or Lua) from path '" << path << "' already loaded." << std::endl;
+        return false;
+    }
+
+    if (extension == ".lua") {
+        try {
+            auto lua_manager = std::make_unique<Neurodeck::LuaManager>();
+            if (!lua_manager->state()) {
+                 std::cerr << "Failed to create Lua state for plugin: " << path << std::endl;
+                 return false;
+            }
+            // LuaPlugin manages its LuaManager's lifetime.
+            auto lua_plugin = std::make_unique<Neurodeck::LuaPlugin>(path, std::move(lua_manager));
+
+            Neurodeck::Plugin* raw_plugin_ptr = lua_plugin.get();
+
+            raw_plugin_ptr->initialize(this); // Call initialize
+
+            // Store the LuaPlugin directly. std::unique_ptr<LuaPlugin> converts to std::unique_ptr<Plugin>.
+            loaded_plugins_[path] = std::move(lua_plugin);
+
+            std::cout << "Lua plugin '" << raw_plugin_ptr->getName() << "' from '" << path << "' loaded and initialized." << std::endl;
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to load Lua plugin " << path << ": " << e.what() << std::endl;
+            return false;
+        }
+    } else if (extension == ".so" || extension == ".dll" || extension == ".dylib") {
+        dlerror(); // Clear old errors
+
+        void* handle = dlopen(path.c_str(), RTLD_LAZY);
+        if (!handle) {
+            std::cerr << "Cannot open C++ library " << path << ": " << dlerror() << std::endl;
+            return false;
+        }
+
+        create_plugin_func create_fn = reinterpret_cast<create_plugin_func>(dlsym(handle, "create_plugin"));
+        const char* dlsym_err = dlerror();
+        if (dlsym_err) {
+            std::cerr << "Cannot find symbol create_plugin in C++ plugin " << path << ": " << dlsym_err << std::endl;
+            dlclose(handle);
+            return false;
+        }
+
+        destroy_plugin_func destroy_fn = reinterpret_cast<destroy_plugin_func>(dlsym(handle, "destroy_plugin"));
+        dlsym_err = dlerror(); // Capture error after dlsym for destroy_plugin
+        if (dlsym_err) {
+            std::cerr << "Cannot find symbol destroy_plugin in C++ plugin " << path << ": " << dlsym_err << std::endl;
+            dlclose(handle);
+            return false;
+        }
+
+        Neurodeck::Plugin* raw_plugin = create_fn();
+        if (!raw_plugin) {
+            std::cerr << "C++ plugin creation failed for " << path << std::endl;
+            dlclose(handle);
+            return false;
+        }
+
+        try {
+            raw_plugin->initialize(this);
+            // Store the C++ plugin with its custom deleter (PluginDeleter)
+            loaded_plugins_[path] = std::unique_ptr<Neurodeck::Plugin>(
+                raw_plugin,
+                Neurodeck::PluginDeleter(destroy_fn, handle)
+            );
+            std::cout << "C++ Plugin '" << raw_plugin->getName() << "' from '" << path << "' loaded and initialized." << std::endl;
+            return true;
+        } catch (const std::exception& e) {
+            std::string pluginName = raw_plugin->getName();
+            std::cerr << "Error initializing C++ plugin " << (pluginName.empty() ? path : pluginName) << ": " << e.what() << std::endl;
+            // If initialization fails, PluginDeleter should still be called for cleanup if raw_plugin is valid.
+            // However, the unique_ptr is not yet in the map. We must manually clean up.
+            if (destroy_fn) destroy_fn(raw_plugin); // Use the found destroyer function
+            // else delete raw_plugin; // Fallback: this is risky if it wasn't new'd normally
+            dlclose(handle); // Close the handle explicitly
+            return false;
+        } catch (...) {
+            std::string pluginName = raw_plugin->getName();
+            std::cerr << "Unknown error initializing C++ plugin " << (pluginName.empty() ? path : pluginName) << "." << std::endl;
+            if (destroy_fn) destroy_fn(raw_plugin);
+            // else delete raw_plugin;
+            dlclose(handle);
+            return false;
+        }
+    } else {
+        std::cerr << "Unsupported plugin type: " << path << ". Must be .lua, .so, .dll, or .dylib." << std::endl;
+        return false;
+    }
+}
+
+bool CommandRegistry::unload_plugin(const std::string& path) {
+    auto it = loaded_plugins_.find(path);
+    if (it == loaded_plugins_.end()) {
+        std::cerr << "Plugin from path '" << path << "' not found." << std::endl;
+        return false;
+    }
+
+    Neurodeck::Plugin* plugin_ptr = it->second.get(); // Get raw pointer before moving/destroying
+    std::string pluginName = plugin_ptr ? plugin_ptr->getName() : path;
+
+    std::cout << "Unloading plugin '" << pluginName << "' from '" << path << "'." << std::endl;
+
+    // Call shutdown before the plugin is removed from the map and its deleter is called.
+    // The PluginDeleter will handle calling destroy_plugin and dlclose.
+    try {
+        if(plugin_ptr) {
+            plugin_ptr->shutdown(this);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error during shutdown of plugin " << pluginName << ": " << e.what() << std::endl;
+        // Continue to unload even if shutdown fails
+    } catch (...) {
+        std::cerr << "Unknown error during shutdown of plugin " << pluginName << "." << std::endl;
+        // Continue to unload
+    }
+
+    loaded_plugins_.erase(it); // This triggers the PluginDeleter
+
+    std::cout << "Plugin '" << pluginName << "' resources released." << std::endl;
+    return true;
+}
+
 // Implementation of the function to populate the registry with default commands.
 void populate_default_commands(CommandRegistry& registry) {
     registry.register_command(std::make_unique<LsCommand>());
     registry.register_command(std::make_unique<ClearCommand>());
-    registry.register_command(std::make_unique<HelpCommand>(registry)); 
+    registry.register_command(std::make_unique<HelpCommand>(registry));
     registry.register_command(std::make_unique<ExitCommand>());
     registry.register_command(std::make_unique<OpenCommand>());
-    registry.register_command(std::make_unique<LoadPluginCommand>(registry));   // Added
-    registry.register_command(std::make_unique<UnloadPluginCommand>(registry)); // Added
+    registry.register_command(std::make_unique<LoadPluginCommand>(registry));
+    registry.register_command(std::make_unique<UnloadPluginCommand>(registry));
     registry.register_command(std::make_unique<ExecCommand>());
-    registry.register_command(std::make_unique<LuaCommand>()); // Added for LuaCommand
+    registry.register_command(std::make_unique<LuaCommand>());
     // If ChatCommand is a default command, register it here:
     // registry.register_command(std::make_unique<ChatCommand>());
-}
-
-
-bool CommandRegistry::load_plugin(const std::string& plugin_path) {
-    if (loaded_plugin_handles_.count(plugin_path)) {
-        std::cerr << "Plugin already loaded: " << plugin_path << std::endl;
-        return false;
-    }
-
-#if defined(_WIN32) || defined(_WIN64)
-    HMODULE handle = LoadLibrary(plugin_path.c_str());
-    if (!handle) {
-        std::cerr << "Error loading plugin " << plugin_path << ": " << GetLastError() << std::endl;
-        return false;
-    }
-#else // POSIX
-    void* handle = dlopen(plugin_path.c_str(), RTLD_LAZY);
-    if (!handle) {
-        std::cerr << "Error loading plugin " << plugin_path << ": " << dlerror() << std::endl;
-        return false;
-    }
-#endif
-
-    register_commands_func_t register_func = nullptr;
-#if defined(_WIN32) || defined(_WIN64)
-    register_func = (register_commands_func_t)GetProcAddress(handle, "register_commands");
-#else
-    register_func = (register_commands_func_t)dlsym(handle, "register_commands");
-#endif
-
-    if (!register_func) {
-        std::cerr << "Error finding 'register_commands' in plugin " << plugin_path << ": ";
-#if defined(_WIN32) || defined(_WIN64)
-        std::cerr << GetLastError();
-#else
-        std::cerr << dlerror();
-#endif
-        std::cerr << std::endl;
-#if defined(_WIN32) || defined(_WIN64)
-        FreeLibrary(handle);
-#else
-        dlclose(handle);
-#endif
-        return false;
-    }
-
-    try {
-        register_func(this);
-        loaded_plugin_handles_[plugin_path] = handle;
-        std::cout << "Plugin " << plugin_path << " loaded and commands registered." << std::endl;
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Exception while calling register_commands for plugin " << plugin_path << ": " << e.what() << std::endl;
-#if defined(_WIN32) || defined(_WIN64)
-        FreeLibrary(handle);
-#else
-        dlclose(handle);
-#endif
-        return false;
-    } catch (...) {
-        std::cerr << "Unknown exception while calling register_commands for plugin " << plugin_path << std::endl;
-#if defined(_WIN32) || defined(_WIN64)
-        FreeLibrary(handle);
-#else
-        dlclose(handle);
-#endif
-        return false;
-    }
-}
-
-bool CommandRegistry::unload_plugin(const std::string& plugin_path) {
-    auto it = loaded_plugin_handles_.find(plugin_path);
-    if (it == loaded_plugin_handles_.end()) {
-        std::cerr << "Plugin not loaded or already unloaded: " << plugin_path << std::endl;
-        return false;
-    }
-
-#if defined(_WIN32) || defined(_WIN64)
-    HMODULE handle = it->second;
-#else
-    void* handle = it->second;
-#endif
-
-    unregister_commands_func_t unregister_func = nullptr;
-#if defined(_WIN32) || defined(_WIN64)
-    unregister_func = (unregister_commands_func_t)GetProcAddress(handle, "unregister_commands");
-#else
-    unregister_func = (unregister_commands_func_t)dlsym(handle, "unregister_commands");
-#endif
-
-    if (unregister_func) {
-        try {
-            unregister_func(this);
-            std::cout << "Called 'unregister_commands' for plugin " << plugin_path << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Exception while calling unregister_commands for plugin " << plugin_path << ": " << e.what() << std::endl;
-            // Decide if we should still attempt to unload the library
-        } catch (...) {
-            std::cerr << "Unknown exception while calling unregister_commands for plugin " << plugin_path << std::endl;
-            // Decide if we should still attempt to unload the library
-        }
-    } else {
-        std::cerr << "Warning: 'unregister_commands' not found in plugin " << plugin_path << ". Commands may not be cleaned up completely." << std::endl;
-    }
-
-#if defined(_WIN32) || defined(_WIN64)
-    if (!FreeLibrary(handle)) {
-        std::cerr << "Error unloading plugin " << plugin_path << ": " << GetLastError() << std::endl;
-        return false;
-    }
-#else
-    if (dlclose(handle) != 0) {
-        std::cerr << "Error unloading plugin " << plugin_path << ": " << dlerror() << std::endl;
-        return false;
-    }
-#endif
-
-    loaded_plugin_handles_.erase(it);
-    std::cout << "Plugin " << plugin_path << " unloaded." << std::endl;
-    return true;
 }
 
 } // namespace Neurodeck
