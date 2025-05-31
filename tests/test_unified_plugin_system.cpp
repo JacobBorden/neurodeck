@@ -39,17 +39,25 @@ protected:
         const char* cpp_echo_env = std::getenv("TEST_CPP_ECHO_PLUGIN_PATH");
         if (cpp_echo_env) cpp_echo_plugin_path = cpp_echo_env;
 
-        const char* lua_hello_env = std::getenv("TEST_LUA_HELLO_PLUGIN_PATH");
-        if (lua_hello_env) lua_hello_plugin_path = lua_hello_env;
-        else if (std::filesystem::exists("scripts/plugins/hello.lua")) { // Adjust if running from project root
-            lua_hello_plugin_path = "scripts/plugins/hello.lua";
-        }
+        const char* lua_plugin_dir_env = std::getenv("NEURODECK_PLUGIN_PATH");
 
+        if (lua_plugin_dir_env && std::strlen(lua_plugin_dir_env) > 0) {
+            std::filesystem::path plugin_dir = lua_plugin_dir_env;
+            lua_hello_plugin_path = (plugin_dir / "hello.lua").string();
+            lua_echo_plugin_path = (plugin_dir / "echo.lua").string();
+        } else {
+            // Fallback to existing logic if NEURODECK_PLUGIN_PATH is not set
+            const char* lua_hello_env = std::getenv("TEST_LUA_HELLO_PLUGIN_PATH");
+            if (lua_hello_env) lua_hello_plugin_path = lua_hello_env;
+            else if (std::filesystem::exists("scripts/plugins/hello.lua")) {
+                lua_hello_plugin_path = "scripts/plugins/hello.lua";
+            } // else default is "../../scripts/plugins/hello.lua"
 
-        const char* lua_echo_env = std::getenv("TEST_LUA_ECHO_PLUGIN_PATH");
-        if (lua_echo_env) lua_echo_plugin_path = lua_echo_env;
-        else if (std::filesystem::exists("scripts/plugins/echo.lua")) { // Adjust if running from project root
-            lua_echo_plugin_path = "scripts/plugins/echo.lua";
+            const char* lua_echo_env = std::getenv("TEST_LUA_ECHO_PLUGIN_PATH");
+            if (lua_echo_env) lua_echo_plugin_path = lua_echo_env;
+            else if (std::filesystem::exists("scripts/plugins/echo.lua")) {
+                lua_echo_plugin_path = "scripts/plugins/echo.lua";
+            } // else default is "../../scripts/plugins/echo.lua"
         }
 
         std::cout << "--- Test Paths ---" << std::endl;
