@@ -17,6 +17,7 @@ add_executable(runTests
     test_load_plugin_command.cpp
     test_unload_plugin_command.cpp
     test_lua_command.cpp
+    test_unified_plugin_system.cpp
 )
 
 # Include directories for headers
@@ -44,4 +45,7 @@ endif()
 
 # Discover and register tests with CTest
 include(GoogleTest)
-gtest_discover_tests(runTests)
+gtest_discover_tests(runTests
+    PROPERTIES
+    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins"
+)

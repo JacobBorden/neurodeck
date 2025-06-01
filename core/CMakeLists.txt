@@ -3,6 +3,8 @@ add_library(core STATIC
     file_io.cpp
     config_parser.cpp
     lua_manager.cpp  # Added LuaManager source
+    lua_plugin.cpp
+    lua_command_wrapper.cpp
 )
 
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

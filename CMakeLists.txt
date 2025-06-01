@@ -55,7 +55,7 @@ endif()
 # Include subdirectories
 add_subdirectory(core)
 add_subdirectory(shell)
-# add_subdirectory(desktop) # Temporarily commented out to avoid wayland-server dependency
+add_subdirectory(desktop) # Temporarily commented out to avoid wayland-server dependency
 add_subdirectory(plugins) # Add the plugins subdirectory
 # You can later add GUI/desktop environment modules:
 # add_subdirectory(gui)

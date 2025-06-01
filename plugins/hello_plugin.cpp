@@ -1,8 +1,10 @@
 #include <iostream>
+#include <iostream>
 #include <memory> // For std::make_unique
 
 // Assuming 'plugins' is a subdirectory of the project root,
 // and 'shell' is another subdirectory of the project root.
+#include "../core/plugin.hpp" // Include the new Plugin interface
 #include "../shell/command.hpp"
 #include "../shell/command_registry.hpp"
 
@@ -25,30 +27,35 @@ public:
 
 } // namespace Neurodeck
 
-// These C-style functions are the interface for the dynamic library loader.
-// They allow the main application to register and unregister commands from this plugin.
-extern "C" {
+// Plugin implementation
+class HelloPlugin : public Neurodeck::Plugin {
+public:
+    std::string getName() const override {
+        return "HelloPlugin";
+    }
 
-    // Function to register commands from this plugin
-    __attribute__((visibility("default"))) // Ensure symbol is exported on Linux/macOS
-    void register_commands(Neurodeck::CommandRegistry* registry) {
+    void initialize(Neurodeck::CommandRegistry* registry) override {
         if (registry) {
             registry->register_command(std::make_unique<Neurodeck::HelloCommand>());
-            // std::cout << "hello_plugin: HelloCommand registered." << std::endl; // Optional debug log
-        } else {
-            // std::cerr << "hello_plugin: Failed to register commands, null registry pointer." << std::endl; // Optional debug log
         }
     }
 
-    // Function to unregister commands from this plugin
-    __attribute__((visibility("default"))) // Ensure symbol is exported on Linux/macOS
-    void unregister_commands(Neurodeck::CommandRegistry* registry) {
+    void shutdown(Neurodeck::CommandRegistry* registry) override {
         if (registry) {
             registry->unregister_command("hello");
-            // std::cout << "hello_plugin: HelloCommand unregistered." << std::endl; // Optional debug log
-        } else {
-            // std::cerr << "hello_plugin: Failed to unregister commands, null registry pointer." << std::endl; // Optional debug log
         }
     }
+};
 
+// Factory functions for the plugin
+extern "C" {
+    __attribute__((visibility("default")))
+    Neurodeck::Plugin* create_plugin() {
+        return new HelloPlugin();
+    }
+
+    __attribute__((visibility("default")))
+    void destroy_plugin(Neurodeck::Plugin* plugin) {
+        delete plugin;
+    }
 }
