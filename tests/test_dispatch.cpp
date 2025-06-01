@@ -148,19 +148,20 @@ TEST_F(DispatchTest, RemovedAndUnregisteredCommandsAreUnknown) {
 
 TEST_F(DispatchTest, DirectExecutableExecution) {
     // Ensure the test script exists and is executable (done by earlier setup steps)
-    ASSERT_TRUE(std::filesystem::exists("tests/test_scripts/myscript.sh"));
-    ASSERT_TRUE(is_executable_test_helper("tests/test_scripts/myscript.sh"));
+    std::string script_path = "../tests/test_scripts/myscript.sh";
+    ASSERT_TRUE(std::filesystem::exists(script_path));
+    ASSERT_TRUE(is_executable_test_helper(script_path));
 
     // Test without arguments
     // We expect this to run the script. Output will be on console.
     // We check that "Unknown command" is NOT printed.
-    process_input("tests/test_scripts/myscript.sh");
+    process_input(script_path);
     EXPECT_EQ(captured_cout_.str().find("Unknown command:"), std::string::npos);
     EXPECT_EQ(captured_cerr_.str().find("Test: Error executing:"), std::string::npos); // Check our test harness error
     // Manually inspect console for "Shell script executed" and "Args: "
 
     // Test with arguments
-    process_input("tests/test_scripts/myscript.sh arg1 \"hello world\"");
+    process_input(script_path + " arg1 \"hello world\"");
     EXPECT_EQ(captured_cout_.str().find("Unknown command:"), std::string::npos);
     EXPECT_EQ(captured_cerr_.str().find("Test: Error executing:"), std::string::npos);
     // Manually inspect console for "Shell script executed" and "Args: arg1 hello world"
@@ -168,16 +169,17 @@ TEST_F(DispatchTest, DirectExecutableExecution) {
 
 TEST_F(DispatchTest, DirectLuaScriptExecution) {
     // Ensure the test script exists
-    ASSERT_TRUE(std::filesystem::exists("tests/test_scripts/mylua.lua"));
+    std::string script_path = "../tests/test_scripts/mylua.lua";
+    ASSERT_TRUE(std::filesystem::exists(script_path));
 
     // Test without arguments
-    process_input("tests/test_scripts/mylua.lua");
+    process_input(script_path);
     EXPECT_EQ(captured_cout_.str().find("Unknown command:"), std::string::npos);
     EXPECT_EQ(captured_cerr_.str().find("Test: Error executing Lua script:"), std::string::npos);
     // Manually inspect console for "Lua script executed" and "Args: "
 
     // Test with arguments
-    process_input("tests/test_scripts/mylua.lua luaparam1 \"another param\"");
+    process_input(script_path + " luaparam1 \"another param\"");
     EXPECT_EQ(captured_cout_.str().find("Unknown command:"), std::string::npos);
     EXPECT_EQ(captured_cerr_.str().find("Test: Error executing Lua script:"), std::string::npos);
     // Manually inspect console for "Lua script executed" and "Args: luaparam1 another param"

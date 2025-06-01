@@ -53,7 +53,7 @@ TEST_F(HelpCommandTest, RunOutputsFormattedHelpMessage) {
     
     // Check if all default commands are listed and have descriptions
     std::vector<std::string> default_command_names = {
-        "ls", "clear", "help", "exit", "open", "loadplugin", "unloadplugin"
+        "help", "exit", "open", "loadplugin", "unloadplugin", "exec", "lua"
     };
     // Sort them as HelpCommand sorts its output
     std::sort(default_command_names.begin(), default_command_names.end());
