@@ -32,6 +32,8 @@ target_link_libraries(runTests
     core
 )
 
+target_compile_definitions(runTests PRIVATE TEST_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_scripts")
+
 # Add coverage options for GCC/Clang
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Compiler is GCC or Clang, adding coverage flags for runTests.")

@@ -148,7 +148,7 @@ TEST_F(DispatchTest, RemovedAndUnregisteredCommandsAreUnknown) {
 
 TEST_F(DispatchTest, DirectExecutableExecution) {
     // Ensure the test script exists and is executable (done by earlier setup steps)
-    std::string script_path = "../tests/test_scripts/myscript.sh";
+    std::string script_path = std::string(TEST_SCRIPT_DIR) + "/myscript.sh";
     ASSERT_TRUE(std::filesystem::exists(script_path));
     ASSERT_TRUE(is_executable_test_helper(script_path));
 
@@ -169,7 +169,7 @@ TEST_F(DispatchTest, DirectExecutableExecution) {
 
 TEST_F(DispatchTest, DirectLuaScriptExecution) {
     // Ensure the test script exists
-    std::string script_path = "../tests/test_scripts/mylua.lua";
+    std::string script_path = std::string(TEST_SCRIPT_DIR) + "/mylua.lua";
     ASSERT_TRUE(std::filesystem::exists(script_path));
 
     // Test without arguments
