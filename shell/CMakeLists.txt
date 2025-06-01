@@ -5,8 +5,6 @@ add_library(shell STATIC
     command.cpp
     command_registry.cpp # Added this line
     tokenize.cpp
-    commands/ls.cpp
-    commands/clear.cpp
     commands/help.cpp
     commands/exit.cpp
     commands/open.cpp

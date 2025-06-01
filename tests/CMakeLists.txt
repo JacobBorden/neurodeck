@@ -8,10 +8,8 @@ add_executable(runTests
     test_config_parser.cpp
     test_file_io.cpp
     test_command_registry.cpp
-    test_clear_command.cpp
     test_exit_command.cpp
     test_help_command.cpp
-    test_ls_command.cpp
     test_open_command.cpp
     test_exec_command.cpp
     test_load_plugin_command.cpp

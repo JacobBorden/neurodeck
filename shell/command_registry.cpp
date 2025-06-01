@@ -9,8 +9,6 @@
 
 // Assuming command implementations are in a 'commands' subdirectory
 // and each command has its own header.
-#include "commands/ls.hpp"
-#include "commands/clear.hpp"
 #include "commands/help.hpp"
 #include "commands/exit.hpp"
 #include "commands/open.hpp"
@@ -279,8 +277,6 @@ bool CommandRegistry::unload_plugin(const std::string& path) {
 
 // Implementation of the function to populate the registry with default commands.
 void populate_default_commands(CommandRegistry& registry) {
-    registry.register_command(std::make_unique<LsCommand>());
-    registry.register_command(std::make_unique<ClearCommand>());
     registry.register_command(std::make_unique<HelpCommand>(registry));
     registry.register_command(std::make_unique<ExitCommand>());
     registry.register_command(std::make_unique<OpenCommand>());
