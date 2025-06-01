@@ -21,36 +21,60 @@
 
 namespace Neurodeck {
 
-// PluginDeleter definition
-struct PluginDeleter {
-    using DestroyPluginFunc = void (*)(Neurodeck::Plugin*);
-    DestroyPluginFunc destroy_func;
-    void* library_handle;
+// Forward declare create_plugin_func and destroy_plugin_func types
+using create_plugin_func = Neurodeck::Plugin* (*)();
+using destroy_plugin_func = void (*)(Neurodeck::Plugin*);
 
-    PluginDeleter(DestroyPluginFunc func = nullptr, void* handle = nullptr)
-        : destroy_func(func), library_handle(handle) {}
-
-    void operator()(Neurodeck::Plugin* plugin) const {
-        if (plugin && destroy_func) {
-            // std::cout << "PluginDeleter: Destroying plugin via function pointer." << std::endl;
-            destroy_func(plugin);
-        } else if (plugin) {
-            // This case should ideally not happen for plugins loaded via this mechanism
-            // std::cerr << "PluginDeleter: Missing destroy_func for plugin, or plugin is null." << std::endl;
-        }
-        if (library_handle) {
-            // std::cout << "PluginDeleter: Closing library handle." << std::endl;
-            dlclose(library_handle);
+// Wrapper for C++ plugins loaded via dlsym
+class CppPluginWrapper : public Neurodeck::Plugin {
+public:
+    CppPluginWrapper(Neurodeck::Plugin* plugin_instance, destroy_plugin_func destroyer, void* lib_handle)
+        : actual_plugin_(plugin_instance), destroy_fn_(destroyer), library_handle_(lib_handle) {
+        if (!actual_plugin_) {
+            throw std::runtime_error("CppPluginWrapper: actual_plugin_ cannot be null.");
         }
     }
+
+    ~CppPluginWrapper() override {
+        // Shutdown should have been called by CommandRegistry before this destructor
+        if (actual_plugin_ && destroy_fn_) {
+            // std::cout << "CppPluginWrapper: Destroying actual plugin via function pointer." << std::endl;
+            destroy_fn_(actual_plugin_);
+        } else if (actual_plugin_) {
+            // Fallback if no destroy_fn_ was provided, though this indicates an issue with plugin loading
+            // std::cerr << "CppPluginWrapper: Missing destroy_fn_ for actual plugin. Direct deleting (risky)." << std::endl;
+            // delete actual_plugin_; // This is risky if not created with new.
+        }
+        actual_plugin_ = nullptr; // Avoid double deletion if destructor is somehow called twice
+
+        if (library_handle_) {
+            // std::cout << "CppPluginWrapper: Closing library handle." << std::endl;
+            dlclose(library_handle_);
+            library_handle_ = nullptr;
+        }
+    }
+
+    std::string getName() const override {
+        return actual_plugin_ ? actual_plugin_->getName() : "";
+    }
+
+    void initialize(Neurodeck::CommandRegistry* registry) override {
+        if (actual_plugin_) actual_plugin_->initialize(registry);
+    }
+
+    void shutdown(Neurodeck::CommandRegistry* registry) override {
+        if (actual_plugin_) actual_plugin_->shutdown(registry);
+    }
+
+private:
+    Neurodeck::Plugin* actual_plugin_;
+    destroy_plugin_func destroy_fn_;
+    void* library_handle_;
 };
 
 } // namespace Neurodeck
 
-namespace { // Anonymous namespace for helper typedefs
-    using create_plugin_func = Neurodeck::Plugin* (*)();
-    using destroy_plugin_func = void (*)(Neurodeck::Plugin*);
-}
+// Note: Anonymous namespace for helper typedefs is removed as they are now in Neurodeck namespace or local to load_plugin
 
 namespace Neurodeck {
 
@@ -69,12 +93,12 @@ CommandRegistry::~CommandRegistry() {
     for (const std::string& path : plugin_paths) {
         auto it = loaded_plugins_.find(path);
         if (it != loaded_plugins_.end()) {
-            Neurodeck::Plugin* raw_plugin = it->second.get();
+            Neurodeck::Plugin* raw_plugin = it->second.get(); // This is now likely CppPluginWrapper or LuaPlugin
             if (raw_plugin) {
                 std::string pluginName = raw_plugin->getName().empty() ? path : raw_plugin->getName();
                 std::cout << "Calling shutdown for plugin '" << pluginName << "' during CommandRegistry destruction." << std::endl;
                 try {
-                    raw_plugin->shutdown(this);
+                    raw_plugin->shutdown(this); // Calls shutdown on CppPluginWrapper or LuaPlugin
                 } catch (const std::exception& e) {
                     std::cerr << "Error during shutdown of plugin " << pluginName << " in ~CommandRegistry: " << e.what() << std::endl;
                 } catch (...) {
@@ -83,7 +107,7 @@ CommandRegistry::~CommandRegistry() {
             }
         }
     }
-    loaded_plugins_.clear(); // This will trigger the PluginDeleter for each element
+    loaded_plugins_.clear(); // This will trigger destructors of CppPluginWrapper / LuaPlugin
     std::cout << "CommandRegistry destroyed." << std::endl;
 }
 
@@ -186,29 +210,33 @@ bool CommandRegistry::load_plugin(const std::string& path) {
         }
 
         try {
-            raw_plugin->initialize(this);
-            // Store the C++ plugin with its custom deleter (PluginDeleter)
-            loaded_plugins_[path] = std::unique_ptr<Neurodeck::Plugin>(
-                raw_plugin,
-                Neurodeck::PluginDeleter(destroy_fn, handle)
-            );
+            // Create the wrapper. The wrapper's destructor will handle cleanup.
+            auto cpp_plugin_wrapper = std::make_unique<CppPluginWrapper>(raw_plugin, destroy_fn, handle);
+            // Call initialize on the wrapped plugin through the wrapper
+            cpp_plugin_wrapper->initialize(this);
+
+            // Store the wrapper. std::unique_ptr<CppPluginWrapper> converts to std::unique_ptr<Plugin>.
+            loaded_plugins_[path] = std::move(cpp_plugin_wrapper);
+
             std::cout << "C++ Plugin '" << raw_plugin->getName() << "' from '" << path << "' loaded and initialized." << std::endl;
             return true;
         } catch (const std::exception& e) {
-            std::string pluginName = raw_plugin->getName();
-            std::cerr << "Error initializing C++ plugin " << (pluginName.empty() ? path : pluginName) << ": " << e.what() << std::endl;
-            // If initialization fails, PluginDeleter should still be called for cleanup if raw_plugin is valid.
-            // However, the unique_ptr is not yet in the map. We must manually clean up.
-            if (destroy_fn) destroy_fn(raw_plugin); // Use the found destroyer function
-            // else delete raw_plugin; // Fallback: this is risky if it wasn't new'd normally
-            dlclose(handle); // Close the handle explicitly
+            std::string pluginName = raw_plugin ? raw_plugin->getName() : path; // Use the corrected version
+            std::cerr << "Error initializing C++ plugin " << pluginName << ": " << e.what() << std::endl; // Use the corrected version
+            // If wrapper construction or initialize failed, raw_plugin might exist.
+            // We need to clean it up using destroy_fn and dlclose as the wrapper isn't in the map.
+            if (raw_plugin && destroy_fn) {
+                destroy_fn(raw_plugin);
+            }
+            dlclose(handle); // Always close handle if opened
             return false;
         } catch (...) {
-            std::string pluginName = raw_plugin->getName();
-            std::cerr << "Unknown error initializing C++ plugin " << (pluginName.empty() ? path : pluginName) << "." << std::endl;
-            if (destroy_fn) destroy_fn(raw_plugin);
-            // else delete raw_plugin;
-            dlclose(handle);
+            std::string pluginName = raw_plugin ? raw_plugin->getName() : path;
+            std::cerr << "Unknown error initializing C++ plugin " << pluginName << "." << std::endl;
+            if (raw_plugin && destroy_fn) {
+                destroy_fn(raw_plugin);
+            }
+            dlclose(handle); // Always close handle if opened
             return false;
         }
     } else {

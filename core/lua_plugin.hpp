@@ -21,7 +21,7 @@ public:
     void initialize(CommandRegistry* registry) override;
     void shutdown(CommandRegistry* registry) override;
 
-    bool hasLuaFunction(const char* funcName);
+    bool hasLuaFunction(const char* funcName) const;
     void callLuaPluginFunction(const char* funcName, CommandRegistry* registry);
 
     // Public member to be accessed by lua_CFunction (lua_register_command)

@@ -61,7 +61,7 @@ std::string LuaPlugin::getName() const {
     return plugin_name_;
 }
 
-bool LuaPlugin::hasLuaFunction(const char* funcName) {
+bool LuaPlugin::hasLuaFunction(const char* funcName) const {
     if (!lua_manager_ || !lua_manager_->state()) return false;
     lua_State* L = lua_manager_->state();
     lua_getglobal(L, funcName);

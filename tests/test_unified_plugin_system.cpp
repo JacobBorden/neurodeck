@@ -1,11 +1,12 @@
 #include "gtest/gtest.h"
-#include "shell/command_registry.hpp" // For CommandRegistry
-#include "shell/command.hpp"          // For Command
+#include "command_registry.hpp" // For CommandRegistry
+#include "command.hpp"          // For Command
 #include <iostream>
 #include <fstream>
 #include <memory>
 #include <vector>
 #include <string>
+#include <cstring> // Required for strlen
 #include <filesystem>
 #include <sstream> // Required for std::stringstream
 
@@ -41,7 +42,7 @@ protected:
 
         const char* lua_plugin_dir_env = std::getenv("NEURODECK_PLUGIN_PATH");
 
-        if (lua_plugin_dir_env && std::strlen(lua_plugin_dir_env) > 0) {
+        if (lua_plugin_dir_env && strlen(lua_plugin_dir_env) > 0) {
             std::filesystem::path plugin_dir = lua_plugin_dir_env;
             lua_hello_plugin_path = (plugin_dir / "hello.lua").string();
             lua_echo_plugin_path = (plugin_dir / "echo.lua").string();
@@ -94,6 +95,7 @@ TEST_F(UnifiedPluginSystemTest, LoadAndUnloadLuaHelloPlugin) {
     {
         CoutRedirect redirect(captured_cout.rdbuf());
         execute_command("hello_lua");
+        std::cout << std::flush; // Explicitly flush
     }
     EXPECT_EQ(captured_cout.str(), "Hello from Lua plugin!\n");
     captured_cout.str("");
@@ -131,6 +133,7 @@ TEST_F(UnifiedPluginSystemTest, LuaEchoPluginExecution) {
     {
         CoutRedirect redirect(captured_cout.rdbuf());
         execute_command("echo_lua", {"test", "message"});
+        std::cout << std::flush; // Explicitly flush
     }
     EXPECT_EQ(captured_cout.str(), "test message\n");
     captured_cout.str("");
@@ -201,5 +204,3 @@ TEST_F(UnifiedPluginSystemTest, MultiplePluginsSimultaneously) {
     EXPECT_TRUE(registry.unload_plugin(cpp_echo_plugin_path));
     EXPECT_EQ(registry.get_command("echo"), nullptr);
 }
-
-```

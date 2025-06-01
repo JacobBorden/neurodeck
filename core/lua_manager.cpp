@@ -1,11 +1,38 @@
 #include "lua_manager.hpp"
 #include <stdexcept> // For std::runtime_error
-#include <iostream>  // For error reporting
+#include <iostream>  // For error reporting, std::cout
+#include <string>    // For std::string building
 #include <chrono>
 
 namespace Neurodeck {
 
 #ifdef LUA_FOUND_IN_CMAKE
+
+// Custom print function to replace Lua's default print
+static int lua_custom_print(lua_State* L) {
+    int n = lua_gettop(L); // Number of arguments
+    std::string s = "";
+    lua_getglobal(L, "tostring"); // Get Lua's tostring function
+    for (int i = 1; i <= n; i++) {
+        lua_pushvalue(L, -1); // Duplicate tostring function
+        lua_pushvalue(L, i);  // Push argument
+        lua_call(L, 1, 1);    // Call tostring(arg)
+        const char* str = lua_tostring(L, -1);
+        if (str == nullptr) { // Should not happen with tostring
+            return luaL_error(L, "'tostring' must return a string to 'print'");
+        }
+        s += str;
+        lua_pop(L, 1); // Remove result of tostring
+        if (i < n) {
+            s += "\t"; // Standard Lua print separates arguments with a tab
+        }
+    }
+    lua_pop(L, 1); // Pop tostring function
+    s += "\n"; // Standard Lua print adds a newline
+    std::cout << s; // Output to C++ std::cout
+    std::cout.flush(); // Ensure it's flushed immediately, important for tests
+    return 0; // Number of results
+}
 
 // static void hook(lua_State* L, lua_Debug* /*ar*/) { // Entire hook mechanism removed
 //     auto* start = static_cast<const std::chrono::steady_clock::time_point*>(
@@ -41,6 +68,10 @@ void LuaManager::openWhitelistedLibs() {
     // This is simpler and more robust than loading them individually for now.
     // The PANIC error needs to be resolved first.
     luaL_openlibs(L_.get());
+
+    // Override default Lua print function
+    lua_pushcfunction(L_.get(), lua_custom_print);
+    lua_setglobal(L_.get(), "print");
 
     // Now, register any custom functions or tables, like 'shell.run'
     lua_newtable(L_.get());          // Create 'shell' table
