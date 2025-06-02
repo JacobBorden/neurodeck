@@ -113,10 +113,11 @@ TEST_F(CommandRegistryTest, PopulateDefaultCommands) {
 
     // Expected built-in commands (names only, as specific types are not StubCommand)
     const std::vector<std::string> expected_builtins = {
-        "ls", "clear", "help", "exit", "open", "loadplugin", "unloadplugin"
+        "help", "exit", "open", "loadplugin", "unloadplugin", "exec", "lua"
     };
     
-    EXPECT_GE(registry_.get_all_command_names().size(), expected_builtins.size());
+    // Check that the number of registered commands exactly matches the expected number of default commands.
+    EXPECT_EQ(registry_.get_all_command_names().size(), expected_builtins.size());
 
     for (const auto& cmd_name : expected_builtins) {
         Neurodeck::Command* cmd = registry_.get_command(cmd_name);

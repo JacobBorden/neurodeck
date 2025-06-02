@@ -60,13 +60,14 @@ neurodeck/                      # Top-level project root
 │   ├── tokenize.hpp
 │   ├── tokenize.cpp
 │   └── commands/               # One file per built-in command
-│       ├── ls.cpp / ls.hpp
-│       ├── clear.cpp / clear.hpp
 │       ├── help.cpp / help.hpp
 │       ├── exit.cpp / exit.hpp
 │       ├── open.cpp / open.hpp
+│       ├── exec_command.cpp / exec_command.hpp
+│       ├── lua_command.cpp / lua_command.hpp
 │       ├── load_plugin_command.hpp (header-only)
 │       └── unload_plugin_command.hpp (header-only)
+            # ls and clear commands have been removed.
 ├── plugins/                    # Example plugins
 │   ├── CMakeLists.txt          # CMake for building plugins
 │   ├── hello_plugin.cpp
@@ -174,16 +175,27 @@ After a successful build, launch your custom shell:
 
 In the REPL, try commands like:
 
-- `ls` — List available modules (placeholder behavior)
-- `clear` — Clear the screen
 - `help` — Show available commands
+- `open <file>` — Opens a file (current behavior might be placeholder)
+- `exec <executable> [args...]` — Executes an external program.
+- `lua <script.lua> [args...]` or `lua "<code_string>"` — Executes a Lua script or code.
+- `exit` — Quit the shell
+
+**Directly Executing Files**
+
+Neurodeck shell can directly execute programs and Lua scripts if you provide their path:
+-   **Executable files:** Type the path to an executable (e.g., `./myprogram`, `/usr/bin/top`, `scripts/myscript.sh`). Arguments can be passed as usual (e.g., `./myprogram arg1 "another arg"`).
+-   **Lua scripts:** Type the path to a Lua script ending in `.lua` (e.g., `scripts/myscript.lua`). Arguments are also supported (e.g., `scripts/myscript.lua param1`). The system must have `lua` installed and in its PATH for this to work.
+
+This provides a convenient way to run local scripts or system utilities. For more explicit control or if you prefer the command syntax, the `exec` and `lua` commands are also available.
+
+**Plugin Management**
 - `loadplugin <path/to/plugin.[so|dll]>` — Loads a plugin.
 - `unloadplugin <path/to/plugin.[so|dll]>` — Unloads a plugin.
-- `exit` — Quit the shell
 
 ### `exec` Command
 
-The `exec` command allows you to run external system programs and scripts directly from the shell. It captures and displays the standard output (`stdout`) and standard error (`stderr`) of the executed command.
+The `exec` command allows you to run external system programs and scripts directly from the shell. It uses the system's underlying shell to execute the command.
 
 **Usage:**
 ```
@@ -194,56 +206,35 @@ exec <command-to-run> [argument1] [argument2] ...
 To list files in the `/tmp` directory:
 ```
 neurodeck> exec ls -l /tmp
-Stdout:
-total 0
-drwxrwxrwt 2 root root 60 Mar 21 10:00 some_dir
-... (output from ls) ...
-
-Stderr:
-... (any errors from ls) ...
+(Output from ls -l /tmp will be displayed here)
 ```
-(Note: The exact output format for stdout/stderr might vary slightly based on implementation details of the command display).
 
 ### `lua` Command
 
-The `lua` command allows you to execute Lua scripts directly from the Neurodeck shell. This provides a powerful way to perform scripting tasks, manipulate data, or interact with shell functionality (if exposed to Lua).
+The `lua` command allows you to execute Lua scripts or Lua code strings directly from the Neurodeck shell.
 
 **Usage:**
+To execute a Lua script file:
+```
+lua <path_to_script.lua> [argument1] [argument2] ...
+```
+To execute a Lua code string:
 ```
 lua "<lua_code_string>"
 ```
 
 **Examples:**
-
-- Print a simple message:
-  ```
-  neurodeck> lua "print('Hello, Lua!')"
-  Hello, Lua!
-  ```
-
-- Perform calculations:
-  ```
-  neurodeck> lua "x = 10; y = 20; print(x + y)"
-  30
-  ```
-
-- Use standard Lua libraries (like `math`, `string`, `table`):
-  ```
-  neurodeck> lua "print(string.upper('test'))"
-  TEST
-  neurodeck> lua "print(math.sqrt(16))"
-  4
-  ```
-
-- Interact with the shell (example using a hypothetical `shell.run()` function):
-  The Lua environment within Neurodeck has access to a special function `shell.run(command_string)` which allows it to execute other shell commands.
-  ```
-  neurodeck> lua "shell.run('ls')" 
-  -- This would then display the output of the 'ls' command
-  ```
-  *(Note: The exact output of `shell.run()` will appear as if the command was typed directly into the shell.)*
-
-The Lua execution environment includes the standard Lua base library, `package`, `coroutine`, `string`, `table`, `math`, `io`, and `os` libraries. Errors from Lua execution will be printed to the shell's standard error output.
+Execute a script:
+```
+neurodeck> lua scripts/myscript.lua param1
+(Output from myscript.lua with param1 will be displayed here)
+```
+Execute a code string:
+```
+neurodeck> lua "print('Hello from Neurodeck Lua!')"
+Hello from Neurodeck Lua!
+```
+The Lua environment includes standard Lua libraries. If `shell.run` is available in Lua (provided by `LuaCommand`), it can be used to call other Neurodeck commands or external programs (e.g., `lua "shell.run('help')"` or `lua "shell.run('exec /bin/echo hello')"`).
 
 ---
 
