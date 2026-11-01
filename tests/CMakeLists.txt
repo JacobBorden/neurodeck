@@ -47,5 +47,6 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(runTests
     PROPERTIES
+    TIMEOUT 10
     ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins"
 )

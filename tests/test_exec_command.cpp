@@ -124,3 +124,24 @@ TEST_F(ExecCommandTest, EchoToStderrViaShellRedirection) {
 // but execvp already handles PATH, so we are testing the OS behavior more than our code.
 // The current "ls" test implicitly checks PATH searching if "ls" is not /bin/ls on test system.
 // Removed spurious closing brace from original prompt
+
+
+TEST_F(ExecCommandTest, EmptyArgumentVectorPrintsUsage) {
+    runCommand({});
+    EXPECT_EQ(captured_cout.str(), "");
+    EXPECT_EQ(captured_cerr.str(), "Usage: exec <command> [args...]\n");
+}
+
+TEST_F(ExecCommandTest, PreservesEmbeddedNulBytesOnBothStreams) {
+    runCommand({"exec", "python3", "-c",
+                "import os; os.write(1, b'A\\x00B'); os.write(2, b'C\\x00D')"});
+    EXPECT_EQ(captured_cout.str(), std::string("Stdout:\nA\0B\n", 12));
+    EXPECT_EQ(captured_cerr.str(), std::string("Stderr:\nC\0D\n", 12));
+}
+
+TEST_F(ExecCommandTest, DrainsLargeStderrBeforeStdoutWithoutDeadlock) {
+    runCommand({"exec", "python3", "-c",
+                "import os; os.write(2, b'E' * 262144); os.write(1, b'O' * 262144)"});
+    EXPECT_EQ(captured_cout.str(), "Stdout:\n" + std::string(262144, 'O') + "\n");
+    EXPECT_EQ(captured_cerr.str(), "Stderr:\n" + std::string(262144, 'E') + "\n");
+}
