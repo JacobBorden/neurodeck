@@ -34,11 +34,18 @@ target_link_libraries(runTests
 
 target_compile_definitions(runTests PRIVATE TEST_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_scripts")
 
+add_executable(neurodeck_mixed_pipe_acceptance_probe
+    ../characterization/mixed-pipe-acceptance-v1/probe.cpp
+)
+target_link_libraries(neurodeck_mixed_pipe_acceptance_probe PRIVATE shell)
+
 # Add coverage options for GCC/Clang
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Compiler is GCC or Clang, adding coverage flags for runTests.")
     target_compile_options(runTests PRIVATE --coverage)
     target_link_libraries(runTests PRIVATE --coverage)
+    target_compile_options(neurodeck_mixed_pipe_acceptance_probe PRIVATE --coverage)
+    target_link_libraries(neurodeck_mixed_pipe_acceptance_probe PRIVATE --coverage)
 else()
     message(STATUS "Compiler is not GCC or Clang, coverage flags not added for runTests.")
 endif()
