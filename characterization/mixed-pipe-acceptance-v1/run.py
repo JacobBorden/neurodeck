@@ -34,33 +34,37 @@ def main():
                        "-I", str(ROOT / "shell/commands"), str(HERE / "probe.cpp"),
                        str(ROOT / "shell/commands/exec_command.cpp"), "-o", binary]
             subprocess.run(command, check=True, timeout=60)
-            for first in (1, 2):
-                for code in (0, 7):
-                    # Both streams exceed ordinary pipe capacity and contain NULs.
-                    out = bytes(range(256)) * 1024
-                    err = bytes(reversed(range(256))) * 1024
-                    script = (
-                        "import os,sys\n"
-                        "payloads={1:bytes(range(256))*1024,"
-                        "2:bytes(reversed(range(256)))*1024}\n"
-                        f"for fd in ({first},{3-first}):\n"
-                        " data=payloads[fd]\n"
-                        " while data:\n"
-                        "  n=os.write(fd,data); data=data[n:]\n"
-                        f"sys.exit({code})\n"
-                    )
-                    actual_out, actual_err, result = run_child(
-                        [binary, sys.executable, "-c", script])
-                    expected_err = b"Stderr:\n" + err + b"\n"
-                    if code:
-                        expected_err += f"Command exited with status {code}\n".encode()
-                    if (result != 0 or actual_out != b"Stdout:\n" + out + b"\n"
-                            or actual_err != expected_err):
-                        raise RuntimeError(f"{standard} first={first} exit={code}: "
-                                           f"probe={result}, bytes="
-                                           f"{len(actual_out)}/{len(actual_err)}")
-                    passed += 1
-                    print(f"PASS {standard} first={first} exit={code}")
+            for layout, out_repeats, err_repeats in (
+                    ("both", 1024, 1024), ("stdout-only", 1024, 0),
+                    ("stderr-only", 0, 1024)):
+                for first in (1, 2):
+                    for code in (0, 7):
+                        # Both streams exceed ordinary pipe capacity and contain NULs.
+                        out = bytes(range(256)) * out_repeats
+                        err = bytes(reversed(range(256))) * err_repeats
+                        script = (
+                            "import os,sys\n"
+                            f"payloads={{1:bytes(range(256))*{out_repeats},"
+                            f"2:bytes(reversed(range(256)))*{err_repeats}}}\n"
+                            f"for fd in ({first},{3-first}):\n"
+                            " data=payloads[fd]\n"
+                            " while data:\n"
+                            "  n=os.write(fd,data); data=data[n:]\n"
+                            f"sys.exit({code})\n"
+                        )
+                        actual_out, actual_err, result = run_child(
+                            [binary, sys.executable, "-c", script])
+                        expected_out = b"Stdout:\n" + out + b"\n" if out else b""
+                        expected_err = b"Stderr:\n" + err + b"\n" if err else b""
+                        if code:
+                            expected_err += f"Command exited with status {code}\n".encode()
+                        if (result != 0 or actual_out != expected_out
+                                or actual_err != expected_err):
+                            raise RuntimeError(f"{standard} layout={layout} first={first} exit={code}: "
+                                               f"probe={result}, bytes="
+                                               f"{len(actual_out)}/{len(actual_err)}")
+                        passed += 1
+                        print(f"PASS {standard} layout={layout} first={first} exit={code}")
     print(f"{passed}/{passed} passed")
 
 

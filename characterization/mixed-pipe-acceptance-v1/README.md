@@ -12,11 +12,13 @@ The runner resolves the source relative to itself, builds in a temporary directo
 and raises an error on compilation failure, timeout, byte mismatch or an unreaped
 child. Each owned probe session is terminated during cleanup, including on timeout.
 
-Acceptance criterion: eight cases pass, covering stdout-first and stderr-first
-262144-byte streams containing every byte value, each with child exit 0 and 7,
+Acceptance criterion: 24 cases pass, covering stdout-first and stderr-first
+262144-byte streams containing every byte value, with both streams populated
+or either stream empty, each with child exit 0 and 7,
 under optimized NDEBUG C++17 and strict C++20. The expected presentation is
 `Stdout:\n<payload>\n` and `Stderr:\n<payload>\n`, with the existing status diagnostic
-on nonzero child exit. Stream order relative to each other is intentionally not
+on nonzero child exit. Empty streams emit no heading or trailing newline; a nonzero exit still emits
+the status diagnostic when stderr is empty. Stream order relative to each other is intentionally not
 asserted. The void command API does not return the child's exit status; probe exit
 zero instead confirms no waitable child remains after execution. Python explicit
 checks remain active under optimization.
