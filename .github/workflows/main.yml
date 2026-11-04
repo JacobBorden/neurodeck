@@ -47,6 +47,9 @@ jobs:
     - name: Normalize coverage paths
       run: sed -i "s|SF:${{ github.workspace }}/|SF:|g" coverage.info
 
+    - name: Test coverage gate
+      run: python3 -m unittest discover -s scripts -p test_check_coverage.py -v
+
     - name: Check Code Coverage Threshold
       run: |
         python scripts/check_coverage.py coverage.info 80 core/ shell/
