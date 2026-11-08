@@ -57,3 +57,9 @@ gtest_discover_tests(runTests
     TIMEOUT 10
     ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins"
 )
+
+# Test the actual shell loop rather than the dispatch simulation in unit tests.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME ShellSession COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shell_session.py $<TARGET_FILE:neurodeck_shell>)
+set_tests_properties(ShellSession PROPERTIES TIMEOUT 40)
