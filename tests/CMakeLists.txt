@@ -50,12 +50,16 @@ else()
     message(STATUS "Compiler is not GCC or Clang, coverage flags not added for runTests.")
 endif()
 
+# Native plugins resolve CommandRegistry symbols from their test host.
+set_target_properties(runTests PROPERTIES ENABLE_EXPORTS ON)
+add_dependencies(runTests hello_plugin echo_plugin)
+
 # Discover and register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(runTests
     PROPERTIES
     TIMEOUT 10
-    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins"
+    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins;TEST_CPP_HELLO_PLUGIN_PATH=$<TARGET_FILE:hello_plugin>;TEST_CPP_ECHO_PLUGIN_PATH=$<TARGET_FILE:echo_plugin>"
 )
 
 # Test the actual shell loop rather than the dispatch simulation in unit tests.
