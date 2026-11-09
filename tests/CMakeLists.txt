@@ -59,7 +59,7 @@ include(GoogleTest)
 gtest_discover_tests(runTests
     PROPERTIES
     TIMEOUT 10
-    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins;TEST_CPP_HELLO_PLUGIN_PATH=$<TARGET_FILE:hello_plugin>;TEST_CPP_ECHO_PLUGIN_PATH=$<TARGET_FILE:echo_plugin>"
+    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins\;TEST_CPP_HELLO_PLUGIN_PATH=$<TARGET_FILE:hello_plugin>\;TEST_CPP_ECHO_PLUGIN_PATH=$<TARGET_FILE:echo_plugin>"
 )
 
 # Test the actual shell loop rather than the dispatch simulation in unit tests.
