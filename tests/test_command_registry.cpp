@@ -147,3 +147,18 @@ TEST_F(CommandRegistryTest, CommandExecutionViaRegistry) {
     EXPECT_TRUE(casted_stub_cmd->ran_) << "Command 'ran_' flag not set after execution.";
     EXPECT_EQ(casted_stub_cmd->last_args_, test_args);
 }
+
+TEST_F(CommandRegistryTest, RejectInvalidPluginPathsWithoutChangingCommands) {
+    registry_.register_command(std::make_unique<Neurodeck::StubCommand>("retained"));
+    auto* retained = registry_.get_command("retained");
+    EXPECT_FALSE(registry_.load_plugin("unsupported.txt"));
+    EXPECT_FALSE(registry_.load_plugin(""));
+    EXPECT_FALSE(registry_.unload_plugin("never-loaded.so"));
+    EXPECT_EQ(registry_.get_command("retained"), retained);
+    EXPECT_EQ(registry_.get_all_command_names(), std::vector<std::string>({"retained"}));
+}
+
+TEST_F(CommandRegistryTest, RejectNullCommandWithoutChangingRegistry) {
+    registry_.register_command(nullptr);
+    EXPECT_TRUE(registry_.get_all_command_names().empty());
+}

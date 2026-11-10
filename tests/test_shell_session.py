@@ -42,6 +42,26 @@ class ShellSessionTest(unittest.TestCase):
         self.assertIn('Unknown command: ./plain.', result.stdout)
         self.assertEqual(result.stderr, 'Error executing: ./fail.sh\n')
 
+    def test_plugin_rejection_and_session_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'broken.lua').write_text('this is not valid Lua !!!')
+            result = self.session(
+                'loadplugin\nunloadplugin\nloadplugin unsupported.txt\n'
+                'loadplugin ./missing.so\nloadplugin ./broken.lua\n'
+                'unloadplugin ./missing.so\nhelp\n'
+                'exec /bin/echo recovery-marker\nexit\n', directory)
+        for diagnostic in (
+                'Usage: loadplugin <path_to_plugin_file>',
+                'Usage: unloadplugin <path_to_plugin_file>',
+                'Unsupported plugin type: unsupported.txt',
+                'Cannot open C++ library ./missing.so:',
+                'Failed to load Lua plugin ./broken.lua:',
+                "Plugin from path './missing.so' not found."):
+            self.assertIn(diagnostic, result.stderr)
+        self.assertIn('Stdout:\nrecovery-marker\n', result.stdout)
+        self.assertNotIn('loaded and initialized.', result.stdout)
+
     @unittest.skipUnless(shutil.which('lua'), 'Lua interpreter absent')
     def test_direct_lua_scripts(self):
         with tempfile.TemporaryDirectory() as directory:
