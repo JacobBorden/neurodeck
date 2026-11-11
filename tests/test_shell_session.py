@@ -62,6 +62,25 @@ class ShellSessionTest(unittest.TestCase):
         self.assertIn('Stdout:\nrecovery-marker\n', result.stdout)
         self.assertNotIn('loaded and initialized.', result.stdout)
 
+    def test_lua_plugin_lifecycle(self):
+        # Embedded Lua does not require a standalone lua interpreter.
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            shutil.copyfile(pathlib.Path(__file__).resolve().parents[1] /
+                            'scripts/plugins/hello.lua', root / 'hello.lua')
+            result = self.session(
+                'loadplugin ./hello.lua\nhello_lua\n'
+                'loadplugin ./hello.lua\nunloadplugin ./hello.lua\n'
+                'hello_lua\nloadplugin ./hello.lua\nhello_lua\nexit\n',
+                directory)
+        self.assertEqual(result.stdout.count('Hello from Lua plugin!\n'), 2)
+        self.assertEqual(result.stdout.count("loaded and initialized."), 2)
+        self.assertIn("Unknown command: hello_lua.", result.stdout)
+        self.assertIn("Calling shutdown for plugin 'HelloLuaPlugin' during "
+                      "CommandRegistry destruction.", result.stdout)
+        self.assertEqual(result.stderr,
+                         "Plugin (C++ or Lua) from path './hello.lua' already loaded.\n")
+
     @unittest.skipUnless(shutil.which('lua'), 'Lua interpreter absent')
     def test_direct_lua_scripts(self):
         with tempfile.TemporaryDirectory() as directory:
