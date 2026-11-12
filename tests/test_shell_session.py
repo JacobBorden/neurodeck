@@ -1,4 +1,5 @@
 """Exercise the real ordinary-user shell, including exit and EOF sessions."""
+import os
 import pathlib
 import subprocess
 import shutil
@@ -10,9 +11,9 @@ SHELL = pathlib.Path(sys.argv.pop(1)).resolve()
 
 
 class ShellSessionTest(unittest.TestCase):
-    def session(self, text, cwd):
+    def session(self, text, cwd, env=None):
         result = subprocess.run([str(SHELL)], input=text, text=True,
-                                capture_output=True, cwd=cwd, timeout=10)
+                                capture_output=True, cwd=cwd, env=env, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Welcome to Neurodeck shell!', result.stdout)
         self.assertIn('Exiting Neurodeck shell. Goodbye!', result.stdout)
@@ -80,6 +81,26 @@ class ShellSessionTest(unittest.TestCase):
                       "CommandRegistry destruction.", result.stdout)
         self.assertEqual(result.stderr,
                          "Plugin (C++ or Lua) from path './hello.lua' already loaded.\n")
+
+    def test_missing_external_lua_preserves_embedded_lua_and_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'empty-path').mkdir()
+            (root / 'direct.lua').write_text("print('must-not-run-direct-lua')")
+            shutil.copyfile(pathlib.Path(__file__).resolve().parents[1] /
+                            'scripts/plugins/hello.lua', root / 'hello.lua')
+            environment = os.environ.copy()
+            environment['PATH'] = str(root / 'empty-path')
+            result = self.session(
+                './direct.lua\nloadplugin ./hello.lua\nhello_lua\n'
+                'exec /bin/echo after-missing-lua\nexit\n', directory,
+                env=environment)
+        self.assertIn('Error executing Lua script: ./direct.lua', result.stderr)
+        self.assertNotIn('must-not-run-direct-lua', result.stdout)
+        self.assertIn('Hello from Lua plugin!\n', result.stdout)
+        self.assertIn('Stdout:\nafter-missing-lua\n', result.stdout)
+        self.assertIn("Calling shutdown for plugin 'HelloLuaPlugin' during "
+                      "CommandRegistry destruction.", result.stdout)
 
     @unittest.skipUnless(shutil.which('lua'), 'Lua interpreter absent')
     def test_direct_lua_scripts(self):
