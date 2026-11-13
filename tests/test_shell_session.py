@@ -3,6 +3,7 @@ import os
 import pathlib
 import subprocess
 import shutil
+import signal
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,23 @@ class ShellSessionTest(unittest.TestCase):
         self.assertIn('Stdout:\nsession-marker\n', result.stdout)
         self.assertNotIn('must-not-run', result.stdout)
         self.assertEqual(result.stderr, '')
+
+    def test_exec_failure_and_signal_preserve_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'failure.sh').write_text(
+                '#!/bin/sh\nprintf failure-out\nprintf failure-err >&2\nexit 7\n')
+            (root / 'signal.sh').write_text('#!/bin/sh\nkill -TERM $$\n')
+            for name in ('failure.sh', 'signal.sh'):
+                (root / name).chmod(0o700)
+            result = self.session(
+                'exec ./failure.sh\nexec ./signal.sh\n'
+                'exec /bin/echo after-child-failures\nexit\n', directory)
+        self.assertIn('Stdout:\nfailure-out\n', result.stdout)
+        self.assertIn('Stdout:\nafter-child-failures\n', result.stdout)
+        self.assertEqual(result.stderr,
+                         'Stderr:\nfailure-err\nCommand exited with status 7\n'
+                         f'Command killed by signal {signal.SIGTERM}\n')
 
     def test_direct_scripts_and_eof(self):
         with tempfile.TemporaryDirectory() as directory:
