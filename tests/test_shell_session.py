@@ -1,0 +1,160 @@
+"""Exercise the real ordinary-user shell, including exit and EOF sessions."""
+import os
+import pathlib
+import subprocess
+import shutil
+import signal
+import sys
+import tempfile
+import unittest
+
+SHELL = pathlib.Path(sys.argv.pop(1)).resolve()
+
+
+class ShellSessionTest(unittest.TestCase):
+    def session(self, text, cwd, env=None):
+        result = subprocess.run([str(SHELL)], input=text, text=True,
+                                capture_output=True, cwd=cwd, env=env, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Welcome to Neurodeck shell!', result.stdout)
+        self.assertIn('Exiting Neurodeck shell. Goodbye!', result.stdout)
+        return result
+
+    def test_commands_and_explicit_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.session('\nunknown_session_command\nhelp\nopen resource\n'
+                                  'exec /bin/echo session-marker\nexit\n'
+                                  'exec /bin/echo must-not-run\n', directory)
+        self.assertIn('Unknown command: unknown_session_command.', result.stdout)
+        self.assertIn("Attempting to open 'resource'", result.stdout)
+        self.assertIn('Stdout:\nsession-marker\n', result.stdout)
+        self.assertNotIn('must-not-run', result.stdout)
+        self.assertEqual(result.stderr, '')
+
+    def test_exec_failure_and_signal_preserve_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'failure.sh').write_text(
+                '#!/bin/sh\nprintf failure-out\nprintf failure-err >&2\nexit 7\n')
+            (root / 'signal.sh').write_text('#!/bin/sh\nkill -TERM $$\n')
+            for name in ('failure.sh', 'signal.sh'):
+                (root / name).chmod(0o700)
+            result = self.session(
+                'exec ./failure.sh\nexec ./signal.sh\n'
+                'exec /bin/echo after-child-failures\nexit\n', directory)
+        self.assertIn('Stdout:\nfailure-out\n', result.stdout)
+        self.assertIn('Stdout:\nafter-child-failures\n', result.stdout)
+        self.assertEqual(result.stderr,
+                         'Stderr:\nfailure-err\nCommand exited with status 7\n'
+                         f'Command killed by signal {signal.SIGTERM}\n')
+
+    def test_binary_mixed_pipes_preserve_session(self):
+        # Each stream exceeds pipe capacity; either sequential drain order would
+        # deadlock one of these children. ASCII plus NUL preserves text decoding.
+        expected_out = 'A\0B\n' * 65536
+        expected_err = 'E\0F\n' * 65536
+        with tempfile.TemporaryDirectory() as directory:
+            child = pathlib.Path(directory) / 'binary.py'
+            child.write_text(
+                'import os, sys\n'
+                'streams = [(1, b"A\\0B\\n"), (2, b"E\\0F\\n")]\n'
+                'if sys.argv[1] == "stderr-first": streams.reverse()\n'
+                'for fd, pattern in streams:\n'
+                '    data = pattern * 65536\n'
+                '    while data:\n'
+                '        data = data[os.write(fd, data):]\n')
+            for order in ('stdout-first', 'stderr-first'):
+                with self.subTest(order=order):
+                    result = self.session(
+                        f'exec {sys.executable} ./binary.py {order}\n'
+                        'exec /bin/echo after-binary-pipes\nexit\n', directory)
+                    self.assertIn('Stdout:\n' + expected_out + '\n', result.stdout)
+                    self.assertEqual(result.stderr, 'Stderr:\n' + expected_err + '\n')
+                    self.assertIn('Stdout:\nafter-binary-pipes\n', result.stdout)
+
+    def test_direct_scripts_and_eof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'ok.sh').write_text('#!/bin/sh\necho direct-marker\n')
+            (root / 'fail.sh').write_text('#!/bin/sh\nexit 7\n')
+            (root / 'ok.sh').chmod(0o700)
+            (root / 'fail.sh').chmod(0o700)
+            (root / 'plain').write_text('ordinary file')
+            result = self.session('./ok.sh\n./fail.sh\n./plain\n', directory)
+        self.assertIn('direct-marker', result.stdout)
+        self.assertIn('Unknown command: ./plain.', result.stdout)
+        self.assertEqual(result.stderr, 'Error executing: ./fail.sh\n')
+
+    def test_plugin_rejection_and_session_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'broken.lua').write_text('this is not valid Lua !!!')
+            result = self.session(
+                'loadplugin\nunloadplugin\nloadplugin unsupported.txt\n'
+                'loadplugin ./missing.so\nloadplugin ./broken.lua\n'
+                'unloadplugin ./missing.so\nhelp\n'
+                'exec /bin/echo recovery-marker\nexit\n', directory)
+        for diagnostic in (
+                'Usage: loadplugin <path_to_plugin_file>',
+                'Usage: unloadplugin <path_to_plugin_file>',
+                'Unsupported plugin type: unsupported.txt',
+                'Cannot open C++ library ./missing.so:',
+                'Failed to load Lua plugin ./broken.lua:',
+                "Plugin from path './missing.so' not found."):
+            self.assertIn(diagnostic, result.stderr)
+        self.assertIn('Stdout:\nrecovery-marker\n', result.stdout)
+        self.assertNotIn('loaded and initialized.', result.stdout)
+
+    def test_lua_plugin_lifecycle(self):
+        # Embedded Lua does not require a standalone lua interpreter.
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            shutil.copyfile(pathlib.Path(__file__).resolve().parents[1] /
+                            'scripts/plugins/hello.lua', root / 'hello.lua')
+            result = self.session(
+                'loadplugin ./hello.lua\nhello_lua\n'
+                'loadplugin ./hello.lua\nunloadplugin ./hello.lua\n'
+                'hello_lua\nloadplugin ./hello.lua\nhello_lua\nexit\n',
+                directory)
+        self.assertEqual(result.stdout.count('Hello from Lua plugin!\n'), 2)
+        self.assertEqual(result.stdout.count("loaded and initialized."), 2)
+        self.assertIn("Unknown command: hello_lua.", result.stdout)
+        self.assertIn("Calling shutdown for plugin 'HelloLuaPlugin' during "
+                      "CommandRegistry destruction.", result.stdout)
+        self.assertEqual(result.stderr,
+                         "Plugin (C++ or Lua) from path './hello.lua' already loaded.\n")
+
+    def test_missing_external_lua_preserves_embedded_lua_and_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'empty-path').mkdir()
+            (root / 'direct.lua').write_text("print('must-not-run-direct-lua')")
+            shutil.copyfile(pathlib.Path(__file__).resolve().parents[1] /
+                            'scripts/plugins/hello.lua', root / 'hello.lua')
+            environment = os.environ.copy()
+            environment['PATH'] = str(root / 'empty-path')
+            result = self.session(
+                './direct.lua\nloadplugin ./hello.lua\nhello_lua\n'
+                'exec /bin/echo after-missing-lua\nexit\n', directory,
+                env=environment)
+        self.assertIn('Error executing Lua script: ./direct.lua', result.stderr)
+        self.assertNotIn('must-not-run-direct-lua', result.stdout)
+        self.assertIn('Hello from Lua plugin!\n', result.stdout)
+        self.assertIn('Stdout:\nafter-missing-lua\n', result.stdout)
+        self.assertIn("Calling shutdown for plugin 'HelloLuaPlugin' during "
+                      "CommandRegistry destruction.", result.stdout)
+
+    @unittest.skipUnless(shutil.which('lua'), 'Lua interpreter absent')
+    def test_direct_lua_scripts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'ok.lua').write_text("print('lua-session-marker')")
+            (root / 'fail.lua').write_text("error('intentional-session-error')")
+            result = self.session('./ok.lua\n./fail.lua\nexit\n', directory)
+        self.assertIn('lua-session-marker', result.stdout)
+        self.assertIn('intentional-session-error', result.stderr)
+        self.assertIn('Error executing Lua script: ./fail.lua', result.stderr)
+
+
+if __name__ == '__main__':
+    unittest.main()

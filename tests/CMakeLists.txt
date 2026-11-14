@@ -34,18 +34,36 @@ target_link_libraries(runTests
 
 target_compile_definitions(runTests PRIVATE TEST_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_scripts")
 
+add_executable(neurodeck_mixed_pipe_acceptance_probe
+    ../characterization/mixed-pipe-acceptance-v1/probe.cpp
+)
+target_link_libraries(neurodeck_mixed_pipe_acceptance_probe PRIVATE shell)
+
 # Add coverage options for GCC/Clang
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Compiler is GCC or Clang, adding coverage flags for runTests.")
     target_compile_options(runTests PRIVATE --coverage)
     target_link_libraries(runTests PRIVATE --coverage)
+    target_compile_options(neurodeck_mixed_pipe_acceptance_probe PRIVATE --coverage)
+    target_link_libraries(neurodeck_mixed_pipe_acceptance_probe PRIVATE --coverage)
 else()
     message(STATUS "Compiler is not GCC or Clang, coverage flags not added for runTests.")
 endif()
+
+# Native plugins resolve CommandRegistry symbols from their test host.
+set_target_properties(runTests PROPERTIES ENABLE_EXPORTS ON)
+add_dependencies(runTests hello_plugin echo_plugin)
 
 # Discover and register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(runTests
     PROPERTIES
-    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins"
+    TIMEOUT 10
+    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins\;TEST_CPP_HELLO_PLUGIN_PATH=$<TARGET_FILE:hello_plugin>\;TEST_CPP_ECHO_PLUGIN_PATH=$<TARGET_FILE:echo_plugin>"
 )
+
+# Test the actual shell loop rather than the dispatch simulation in unit tests.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME ShellSession COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shell_session.py $<TARGET_FILE:neurodeck_shell>)
+set_tests_properties(ShellSession PROPERTIES TIMEOUT 40)
