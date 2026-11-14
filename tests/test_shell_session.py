@@ -48,6 +48,30 @@ class ShellSessionTest(unittest.TestCase):
                          'Stderr:\nfailure-err\nCommand exited with status 7\n'
                          f'Command killed by signal {signal.SIGTERM}\n')
 
+    def test_binary_mixed_pipes_preserve_session(self):
+        # Each stream exceeds pipe capacity; either sequential drain order would
+        # deadlock one of these children. ASCII plus NUL preserves text decoding.
+        expected_out = 'A\0B\n' * 65536
+        expected_err = 'E\0F\n' * 65536
+        with tempfile.TemporaryDirectory() as directory:
+            child = pathlib.Path(directory) / 'binary.py'
+            child.write_text(
+                'import os, sys\n'
+                'streams = [(1, b"A\\0B\\n"), (2, b"E\\0F\\n")]\n'
+                'if sys.argv[1] == "stderr-first": streams.reverse()\n'
+                'for fd, pattern in streams:\n'
+                '    data = pattern * 65536\n'
+                '    while data:\n'
+                '        data = data[os.write(fd, data):]\n')
+            for order in ('stdout-first', 'stderr-first'):
+                with self.subTest(order=order):
+                    result = self.session(
+                        f'exec {sys.executable} ./binary.py {order}\n'
+                        'exec /bin/echo after-binary-pipes\nexit\n', directory)
+                    self.assertIn('Stdout:\n' + expected_out + '\n', result.stdout)
+                    self.assertEqual(result.stderr, 'Stderr:\n' + expected_err + '\n')
+                    self.assertIn('Stdout:\nafter-binary-pipes\n', result.stdout)
+
     def test_direct_scripts_and_eof(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
