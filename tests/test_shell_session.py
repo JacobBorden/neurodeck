@@ -124,6 +124,30 @@ class ShellSessionTest(unittest.TestCase):
         self.assertEqual(result.stderr,
                          "Plugin (C++ or Lua) from path './hello.lua' already loaded.\n")
 
+    def test_eof_runs_final_command_and_shuts_down_active_plugin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'eof.lua').write_text(
+                'function get_plugin_name() return "EofPlugin" end\n'
+                'function initialize()\n'
+                '  neurodeck_register_command("eof_command", "EOF probe",\n'
+                '    function() print("final-command-marker") end)\n'
+                'end\n'
+                'function shutdown()\n'
+                '  print("eof-shutdown-marker")\n'
+                '  neurodeck_unregister_command("eof_command")\n'
+                'end\n')
+            # Closing stdin after the last token must still dispatch that line.
+            result = self.session('loadplugin ./eof.lua\neof_command', directory)
+        self.assertEqual(result.stderr, '')
+        for marker in ('final-command-marker', 'eof-shutdown-marker',
+                       'Exiting Neurodeck shell. Goodbye!'):
+            self.assertEqual(result.stdout.count(marker), 1, result.stdout)
+        self.assertLess(result.stdout.index('final-command-marker'),
+                        result.stdout.index('Exiting Neurodeck shell. Goodbye!'))
+        self.assertLess(result.stdout.index('Exiting Neurodeck shell. Goodbye!'),
+                        result.stdout.index('eof-shutdown-marker'))
+
     def test_missing_external_lua_preserves_embedded_lua_and_session(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
