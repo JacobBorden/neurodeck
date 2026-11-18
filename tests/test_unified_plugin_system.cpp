@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <cstring> // Required for strlen
+#include <cstdlib>
 #include <filesystem>
 #include <sstream> // Required for std::stringstream
 
@@ -28,10 +28,10 @@ protected:
     Neurodeck::CommandRegistry registry;
     std::stringstream captured_cout;
 
-    std::string cpp_hello_plugin_path = "";
-    std::string cpp_echo_plugin_path = "";
-    std::string lua_hello_plugin_path = "../../scripts/plugins/hello.lua"; // Default, might be overridden
-    std::string lua_echo_plugin_path = "../../scripts/plugins/echo.lua";   // Default, might be overridden
+    std::string cpp_hello_plugin_path = DEFAULT_CPP_HELLO_PLUGIN_PATH;
+    std::string cpp_echo_plugin_path = DEFAULT_CPP_ECHO_PLUGIN_PATH;
+    std::string lua_hello_plugin_path = DEFAULT_LUA_PLUGIN_DIR "/hello.lua";
+    std::string lua_echo_plugin_path = DEFAULT_LUA_PLUGIN_DIR "/echo.lua";
 
     void SetUp() override {
         const char* cpp_hello_env = std::getenv("TEST_CPP_HELLO_PLUGIN_PATH");
@@ -42,23 +42,16 @@ protected:
 
         const char* lua_plugin_dir_env = std::getenv("NEURODECK_PLUGIN_PATH");
 
-        if (lua_plugin_dir_env && strlen(lua_plugin_dir_env) > 0) {
+        if (lua_plugin_dir_env && *lua_plugin_dir_env != '\0') {
             std::filesystem::path plugin_dir = lua_plugin_dir_env;
             lua_hello_plugin_path = (plugin_dir / "hello.lua").string();
             lua_echo_plugin_path = (plugin_dir / "echo.lua").string();
         } else {
-            // Fallback to existing logic if NEURODECK_PLUGIN_PATH is not set
             const char* lua_hello_env = std::getenv("TEST_LUA_HELLO_PLUGIN_PATH");
             if (lua_hello_env) lua_hello_plugin_path = lua_hello_env;
-            else if (std::filesystem::exists("scripts/plugins/hello.lua")) {
-                lua_hello_plugin_path = "scripts/plugins/hello.lua";
-            } // else default is "../../scripts/plugins/hello.lua"
 
             const char* lua_echo_env = std::getenv("TEST_LUA_ECHO_PLUGIN_PATH");
             if (lua_echo_env) lua_echo_plugin_path = lua_echo_env;
-            else if (std::filesystem::exists("scripts/plugins/echo.lua")) {
-                lua_echo_plugin_path = "scripts/plugins/echo.lua";
-            } // else default is "../../scripts/plugins/echo.lua"
         }
 
         std::cout << "--- Test Paths ---" << std::endl;

@@ -54,13 +54,16 @@ endif()
 set_target_properties(runTests PROPERTIES ENABLE_EXPORTS ON)
 add_dependencies(runTests hello_plugin echo_plugin)
 
+# Use build-resolved fixture paths across CTest discovery versions.
+target_compile_definitions(runTests PRIVATE
+    "DEFAULT_LUA_PLUGIN_DIR=\"${CMAKE_SOURCE_DIR}/scripts/plugins\""
+    "DEFAULT_CPP_HELLO_PLUGIN_PATH=\"$<TARGET_FILE:hello_plugin>\""
+    "DEFAULT_CPP_ECHO_PLUGIN_PATH=\"$<TARGET_FILE:echo_plugin>\""
+)
+
 # Discover and register tests with CTest
 include(GoogleTest)
-gtest_discover_tests(runTests
-    PROPERTIES
-    TIMEOUT 10
-    ENVIRONMENT "NEURODECK_PLUGIN_PATH=${CMAKE_SOURCE_DIR}/scripts/plugins\;TEST_CPP_HELLO_PLUGIN_PATH=$<TARGET_FILE:hello_plugin>\;TEST_CPP_ECHO_PLUGIN_PATH=$<TARGET_FILE:echo_plugin>"
-)
+gtest_discover_tests(runTests PROPERTIES TIMEOUT 10)
 
 # Test the actual shell loop rather than the dispatch simulation in unit tests.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
