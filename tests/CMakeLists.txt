@@ -65,6 +65,16 @@ target_compile_definitions(runTests PRIVATE
 include(GoogleTest)
 gtest_discover_tests(runTests PROPERTIES TIMEOUT 10)
 
+# Keep syscall fault injection in a separate executable; the shell and other
+# test binaries continue to call libc directly.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_executable(neurodeck_exec_launch_tests test_exec_launch.cpp)
+    target_link_libraries(neurodeck_exec_launch_tests PRIVATE gtest_main shell)
+    set_target_properties(neurodeck_exec_launch_tests PROPERTIES
+        LINK_FLAGS "-Wl,--wrap=pipe,--wrap=fork")
+    gtest_discover_tests(neurodeck_exec_launch_tests PROPERTIES TIMEOUT 10)
+endif()
+
 # Test the actual shell loop rather than the dispatch simulation in unit tests.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME ShellSession COMMAND ${Python3_EXECUTABLE}
