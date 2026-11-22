@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <iostream>
 #include <sstream>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace {
@@ -30,14 +31,18 @@ public:
     ~InjectLaunchFailure() { active_failure = nullptr; }
 };
 
-class CaptureError {
+class CaptureStream {
 public:
-    CaptureError() : original_(std::cerr.rdbuf(output_.rdbuf())) {}
-    ~CaptureError() { std::cerr.rdbuf(original_); }
+    explicit CaptureStream(std::ostream& stream)
+        : stream_(stream), original_(stream_.rdbuf(output_.rdbuf())) {}
+    CaptureStream(const CaptureStream&) = delete;
+    CaptureStream& operator=(const CaptureStream&) = delete;
+    ~CaptureStream() { stream_.rdbuf(original_); }
 
     std::string str() const { return output_.str(); }
 
 private:
+    std::ostream& stream_;
     std::ostringstream output_;
     std::streambuf* original_;
 };
@@ -46,7 +51,7 @@ void expectLaunchFailure(LaunchFailure failure, int pipe_calls, int fork_calls,
                          std::size_t opened_count, const char* diagnostic) {
     Neurodeck::ExecCommand command;
     {
-        CaptureError captured;
+        CaptureStream captured(std::cerr);
         {
             InjectLaunchFailure inject(failure);
             command.run({"exec", "/bin/true"});
@@ -66,15 +71,33 @@ void expectLaunchFailure(LaunchFailure failure, int pipe_calls, int fork_calls,
         EXPECT_EQ(error, EBADF) << "pipe fd " << fd;
     }
 
-    CaptureError captured;
+    CaptureStream captured(std::cerr);
     command.run({"exec", "/bin/sh", "-c", "printf recovered >&2"});
     EXPECT_EQ(captured.str(), "Stderr:\nrecovered\n");
 }
+
+struct WaitFailure {
+    int error;
+    int calls = 0;
+    pid_t child = -1;
+    pid_t reaped = -1;
+};
+
+WaitFailure* active_wait_failure = nullptr;
+
+class InjectWaitFailure {
+public:
+    explicit InjectWaitFailure(WaitFailure& failure) { active_wait_failure = &failure; }
+    InjectWaitFailure(const InjectWaitFailure&) = delete;
+    InjectWaitFailure& operator=(const InjectWaitFailure&) = delete;
+    ~InjectWaitFailure() { active_wait_failure = nullptr; }
+};
 
 } // namespace
 
 extern "C" int __real_pipe(int* fds);
 extern "C" pid_t __real_fork();
+extern "C" pid_t __real_waitpid(pid_t child, int* status, int options);
 
 extern "C" int __wrap_pipe(int* fds) {
     auto* failure = active_failure;
@@ -102,6 +125,31 @@ extern "C" pid_t __wrap_fork() {
     return __real_fork();
 }
 
+extern "C" pid_t __wrap_waitpid(pid_t child, int* status, int options) {
+    auto* failure = active_wait_failure;
+    if (!failure) {
+        return __real_waitpid(child, status, options);
+    }
+
+    failure->child = child;
+    ++failure->calls;
+    if (failure->error == EINTR && failure->calls == 1) {
+        errno = EINTR;
+        return -1;
+    }
+
+    const pid_t result = __real_waitpid(child, status, options);
+    if (result == child && child > 0) {
+        failure->reaped = result;
+        if (failure->error == ECHILD) {
+            // Leave the real exit status in place so decoding it on error is observable.
+            errno = ECHILD;
+            return -1;
+        }
+    }
+    return result;
+}
+
 TEST(ExecLaunchTest, ReportsStdoutPipeFailureBeforeFork) {
     expectLaunchFailure({1, false}, 1, 0, 0, "Failed to create stdout pipe: ");
 }
@@ -112,4 +160,45 @@ TEST(ExecLaunchTest, ClosesStdoutPipeWhenStderrPipeFails) {
 
 TEST(ExecLaunchTest, ClosesBothPipesWhenForkFails) {
     expectLaunchFailure({0, true}, 2, 1, 4, "Failed to fork process: ");
+}
+
+namespace {
+
+void expectWaitFailure(int error, int expected_calls, const std::string& diagnostic) {
+    WaitFailure failure{error};
+    Neurodeck::ExecCommand command;
+    {
+        CaptureStream output(std::cout);
+        CaptureStream errors(std::cerr);
+        {
+            InjectWaitFailure inject(failure);
+            command.run({"exec", "/bin/sh", "-c", "printf out; printf err >&2; exit 7"});
+        }
+        EXPECT_EQ(output.str(), "Stdout:\nout\n");
+        EXPECT_EQ(errors.str(), "Stderr:\nerr\n" + diagnostic + "\n");
+    }
+
+    EXPECT_EQ(failure.calls, expected_calls);
+    ASSERT_GT(failure.child, 0);
+    EXPECT_EQ(failure.reaped, failure.child);
+
+    // If the retry regresses, reap the finite fixture here and fail the test.
+    pid_t remaining;
+    do {
+        remaining = __real_waitpid(failure.child, nullptr, 0);
+    } while (remaining == -1 && errno == EINTR);
+    const int wait_error = errno;
+    EXPECT_EQ(remaining, -1);
+    EXPECT_EQ(wait_error, ECHILD);
+}
+
+} // namespace
+
+TEST(ExecWaitTest, RetriesInterruptedWaitAndReportsChildExit) {
+    expectWaitFailure(EINTR, 2, "Command exited with status 7");
+}
+
+TEST(ExecWaitTest, ReportsTerminalWaitFailureAndPreservesOutput) {
+    expectWaitFailure(ECHILD, 1, std::string("Failed to wait for child process: ") +
+                     std::strerror(ECHILD));
 }

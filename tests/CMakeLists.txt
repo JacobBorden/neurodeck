@@ -71,7 +71,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Cla
     add_executable(neurodeck_exec_launch_tests test_exec_launch.cpp)
     target_link_libraries(neurodeck_exec_launch_tests PRIVATE gtest_main shell)
     set_target_properties(neurodeck_exec_launch_tests PROPERTIES
-        LINK_FLAGS "-Wl,--wrap=pipe,--wrap=fork")
+        LINK_FLAGS "-Wl,--wrap=pipe,--wrap=fork,--wrap=waitpid")
     gtest_discover_tests(neurodeck_exec_launch_tests PROPERTIES TIMEOUT 10)
 endif()
 
