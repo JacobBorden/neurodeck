@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
+#include <poll.h>
 #include <sstream>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -93,9 +94,26 @@ public:
     ~InjectWaitFailure() { active_wait_failure = nullptr; }
 };
 
+struct PollFailure {
+    int error;
+    int calls = 0;
+    std::array<int, 2> read_fds{-1, -1};
+};
+
+PollFailure* active_poll_failure = nullptr;
+
+class InjectPollFailure {
+public:
+    explicit InjectPollFailure(PollFailure& failure) { active_poll_failure = &failure; }
+    InjectPollFailure(const InjectPollFailure&) = delete;
+    InjectPollFailure& operator=(const InjectPollFailure&) = delete;
+    ~InjectPollFailure() { active_poll_failure = nullptr; }
+};
+
 } // namespace
 
 extern "C" int __real_pipe(int* fds);
+extern "C" int __real_poll(pollfd* fds, nfds_t count, int timeout);
 extern "C" pid_t __real_fork();
 extern "C" pid_t __real_waitpid(pid_t child, int* status, int options);
 
@@ -150,6 +168,16 @@ extern "C" pid_t __wrap_waitpid(pid_t child, int* status, int options) {
     return result;
 }
 
+extern "C" int __wrap_poll(pollfd* fds, nfds_t count, int timeout) {
+    auto* failure = active_poll_failure;
+    if (failure && count == failure->read_fds.size() && ++failure->calls == 1) {
+        failure->read_fds = {fds[0].fd, fds[1].fd};
+        errno = failure->error;
+        return -1;
+    }
+    return __real_poll(fds, count, timeout);
+}
+
 TEST(ExecLaunchTest, ReportsStdoutPipeFailureBeforeFork) {
     expectLaunchFailure({1, false}, 1, 0, 0, "Failed to create stdout pipe: ");
 }
@@ -201,4 +229,46 @@ TEST(ExecWaitTest, RetriesInterruptedWaitAndReportsChildExit) {
 TEST(ExecWaitTest, ReportsTerminalWaitFailureAndPreservesOutput) {
     expectWaitFailure(ECHILD, 1, std::string("Failed to wait for child process: ") +
                      std::strerror(ECHILD));
+}
+
+TEST(ExecPollTest, RetriesInterruptedPollAndPreservesBothStreams) {
+    PollFailure failure{EINTR};
+    Neurodeck::ExecCommand command;
+    CaptureStream output(std::cout);
+    CaptureStream errors(std::cerr);
+    {
+        InjectPollFailure inject(failure);
+        command.run({"exec", "/bin/sh", "-c", "printf out; printf err >&2"});
+    }
+    EXPECT_GT(failure.calls, 1);
+    EXPECT_EQ(output.str(), "Stdout:\nout\n");
+    EXPECT_EQ(errors.str(), "Stderr:\nerr\n");
+}
+
+TEST(ExecPollTest, ClosesBothReadEndsAndReapsChildAfterTerminalPollError) {
+    PollFailure failure{EIO};
+    WaitFailure wait{0};
+    Neurodeck::ExecCommand command;
+    CaptureStream output(std::cout);
+    CaptureStream errors(std::cerr);
+    {
+        InjectPollFailure inject_poll(failure);
+        InjectWaitFailure observe_wait(wait);
+        command.run({"exec", "/bin/true"});
+    }
+    EXPECT_EQ(failure.calls, 1);
+    EXPECT_TRUE(output.str().empty());
+    EXPECT_EQ(errors.str(), std::string("Error polling child output: ") + std::strerror(EIO) + "\n");
+    for (const int fd : failure.read_fds) {
+        ASSERT_GE(fd, 0);
+        errno = 0;
+        const int result = fcntl(fd, F_GETFD);
+        const int error = errno;
+        EXPECT_EQ(result, -1) << "pipe fd " << fd;
+        EXPECT_EQ(error, EBADF) << "pipe fd " << fd;
+    }
+    EXPECT_NE(failure.read_fds[0], failure.read_fds[1]);
+    EXPECT_EQ(wait.calls, 1);
+    EXPECT_GT(wait.child, 0);
+    EXPECT_EQ(wait.reaped, wait.child);
 }
