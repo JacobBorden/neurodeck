@@ -110,10 +110,29 @@ public:
     ~InjectPollFailure() { active_poll_failure = nullptr; }
 };
 
+struct ReadFailure {
+    const LaunchFailure& launch;
+    int error;
+    int fd = -1;
+    int calls = 0;
+    bool injected = false;
+};
+
+ReadFailure* active_read_failure = nullptr;
+
+class InjectReadFailure {
+public:
+    explicit InjectReadFailure(ReadFailure& failure) { active_read_failure = &failure; }
+    InjectReadFailure(const InjectReadFailure&) = delete;
+    InjectReadFailure& operator=(const InjectReadFailure&) = delete;
+    ~InjectReadFailure() { active_read_failure = nullptr; }
+};
+
 } // namespace
 
 extern "C" int __real_pipe(int* fds);
 extern "C" int __real_poll(pollfd* fds, nfds_t count, int timeout);
+extern "C" ssize_t __real_read(int fd, void* buffer, size_t count);
 extern "C" pid_t __real_fork();
 extern "C" pid_t __real_waitpid(pid_t child, int* status, int options);
 
@@ -176,6 +195,32 @@ extern "C" int __wrap_poll(pollfd* fds, nfds_t count, int timeout) {
         return -1;
     }
     return __real_poll(fds, count, timeout);
+}
+
+extern "C" ssize_t __wrap_read(int fd, void* buffer, size_t count) {
+    auto* failure = active_read_failure;
+    // The second pipe captures stderr. Leave stdout and unrelated reads alone.
+    if (!failure || failure->launch.opened_count != 4 || fd != failure->launch.opened_fds[2]) {
+        return __real_read(fd, buffer, count);
+    }
+
+    failure->fd = fd;
+    ++failure->calls;
+    if (failure->error == EINTR && !failure->injected) {
+        failure->injected = true;
+        errno = EINTR;
+        return -1;
+    }
+
+    const ssize_t result = __real_read(fd, buffer, count);
+    // The fixture writes stderr once. Consume those bytes before injecting EIO
+    // so closing the read end cannot race that write and cause SIGPIPE.
+    if (failure->error == EIO && !failure->injected && result > 0) {
+        failure->injected = true;
+        errno = EIO;
+        return -1;
+    }
+    return result;
 }
 
 TEST(ExecLaunchTest, ReportsStdoutPipeFailureBeforeFork) {
@@ -271,4 +316,49 @@ TEST(ExecPollTest, ClosesBothReadEndsAndReapsChildAfterTerminalPollError) {
     EXPECT_EQ(wait.calls, 1);
     EXPECT_GT(wait.child, 0);
     EXPECT_EQ(wait.reaped, wait.child);
+}
+
+namespace {
+
+void expectReadFailure(int error, const std::string& expected_stderr) {
+    LaunchFailure launch{0, false};
+    ReadFailure read_failure{launch, error};
+    WaitFailure wait{0};
+    Neurodeck::ExecCommand command;
+    CaptureStream output(std::cout);
+    CaptureStream errors(std::cerr);
+    {
+        InjectLaunchFailure observe_pipes(launch);
+        InjectReadFailure inject_read(read_failure);
+        InjectWaitFailure observe_wait(wait);
+        command.run({"exec", "/bin/sh", "-c", "printf out; printf err >&2"});
+    }
+
+    EXPECT_TRUE(read_failure.injected);
+    if (error == EINTR) {
+        EXPECT_GT(read_failure.calls, 1);
+    } else {
+        EXPECT_EQ(read_failure.calls, 1);
+    }
+    EXPECT_EQ(output.str(), "Stdout:\nout\n");
+    EXPECT_EQ(errors.str(), expected_stderr);
+    EXPECT_EQ(wait.calls, 1);
+    EXPECT_GT(wait.child, 0);
+    EXPECT_EQ(wait.reaped, wait.child);
+    ASSERT_GE(read_failure.fd, 0);
+    errno = 0;
+    const int result = fcntl(read_failure.fd, F_GETFD);
+    const int fd_error = errno;
+    EXPECT_EQ(result, -1);
+    EXPECT_EQ(fd_error, EBADF);
+}
+
+} // namespace
+
+TEST(ExecReadTest, RetriesInterruptedReadAndPreservesBothStreams) {
+    expectReadFailure(EINTR, "Stderr:\nerr\n");
+}
+
+TEST(ExecReadTest, ClosesFailedStreamAndPreservesOtherStream) {
+    expectReadFailure(EIO, std::string("Error reading from child stderr: ") + std::strerror(EIO) + "\n");
 }
