@@ -110,9 +110,11 @@ public:
     ~InjectPollFailure() { active_poll_failure = nullptr; }
 };
 
+enum class ReadFault { Interrupted, ErrorWithData, ErrorInsteadOfEof };
+
 struct ReadFailure {
     const LaunchFailure& launch;
-    int error;
+    ReadFault fault;
     int fd = -1;
     int calls = 0;
     bool injected = false;
@@ -206,7 +208,7 @@ extern "C" ssize_t __wrap_read(int fd, void* buffer, size_t count) {
 
     failure->fd = fd;
     ++failure->calls;
-    if (failure->error == EINTR && !failure->injected) {
+    if (failure->fault == ReadFault::Interrupted && !failure->injected) {
         failure->injected = true;
         errno = EINTR;
         return -1;
@@ -215,7 +217,10 @@ extern "C" ssize_t __wrap_read(int fd, void* buffer, size_t count) {
     const ssize_t result = __real_read(fd, buffer, count);
     // The fixture writes stderr once. Consume those bytes before injecting EIO
     // so closing the read end cannot race that write and cause SIGPIPE.
-    if (failure->error == EIO && !failure->injected && result > 0) {
+    const bool error_with_data = failure->fault == ReadFault::ErrorWithData && result > 0;
+    // Replacing EOF with EIO leaves previously delivered bytes in the capture.
+    const bool error_instead_of_eof = failure->fault == ReadFault::ErrorInsteadOfEof && result == 0;
+    if (!failure->injected && (error_with_data || error_instead_of_eof)) {
         failure->injected = true;
         errno = EIO;
         return -1;
@@ -320,9 +325,9 @@ TEST(ExecPollTest, ClosesBothReadEndsAndReapsChildAfterTerminalPollError) {
 
 namespace {
 
-void expectReadFailure(int error, const std::string& expected_stderr) {
+void expectReadFailure(ReadFault fault, const std::string& expected_stderr) {
     LaunchFailure launch{0, false};
-    ReadFailure read_failure{launch, error};
+    ReadFailure read_failure{launch, fault};
     WaitFailure wait{0};
     Neurodeck::ExecCommand command;
     CaptureStream output(std::cout);
@@ -335,10 +340,10 @@ void expectReadFailure(int error, const std::string& expected_stderr) {
     }
 
     EXPECT_TRUE(read_failure.injected);
-    if (error == EINTR) {
-        EXPECT_GT(read_failure.calls, 1);
-    } else {
+    if (fault == ReadFault::ErrorWithData) {
         EXPECT_EQ(read_failure.calls, 1);
+    } else {
+        EXPECT_GT(read_failure.calls, 1);
     }
     EXPECT_EQ(output.str(), "Stdout:\nout\n");
     EXPECT_EQ(errors.str(), expected_stderr);
@@ -356,9 +361,16 @@ void expectReadFailure(int error, const std::string& expected_stderr) {
 } // namespace
 
 TEST(ExecReadTest, RetriesInterruptedReadAndPreservesBothStreams) {
-    expectReadFailure(EINTR, "Stderr:\nerr\n");
+    expectReadFailure(ReadFault::Interrupted, "Stderr:\nerr\n");
 }
 
 TEST(ExecReadTest, ClosesFailedStreamAndPreservesOtherStream) {
-    expectReadFailure(EIO, std::string("Error reading from child stderr: ") + std::strerror(EIO) + "\n");
+    expectReadFailure(ReadFault::ErrorWithData,
+                      std::string("Error reading from child stderr: ") + std::strerror(EIO) + "\n");
+}
+
+TEST(ExecReadTest, PreservesPreviouslyCapturedBytesAfterTerminalReadError) {
+    expectReadFailure(ReadFault::ErrorInsteadOfEof,
+                      std::string("Error reading from child stderr: ") + std::strerror(EIO) +
+                          "\nStderr:\nerr\n");
 }
