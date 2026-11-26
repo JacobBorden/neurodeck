@@ -51,3 +51,35 @@ proposal decisions concerning SIGPIPE, errno representation and launch channels
 remain open. Full CI/static analysis/80% coverage and independent exact-head
 review remain separate gates. Revert this packet alone to remove the harness;
 executor repair history remains intact.
+
+## Executor patch coverage
+
+Use this check to distinguish untested ordinary branches from unhit GCC
+exception edges. Run it from the task worktree after a clean GCC coverage build
+and CTest run. The coverage data and source must come from the same revision.
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+gcov -b -j -t \
+  -o build/shell/CMakeFiles/shell.dir/commands/exec_command.cpp.gcno \
+  shell/commands/exec_command.cpp > build/exec-gcov.json
+python3 characterization/mixed-pipe-acceptance-v1/report_exec_coverage.py \
+  fef6996cae551092587ec0434d29f86138665bd6 build/exec-gcov.json
+```
+
+On PR #12 head `5df94839374b95898dc8e9d12433886385c36d66`, GCC 15.2.1
+reported 46 measured changed lines, zero missed lines and ten partial lines.
+All uncovered branches on those lines were marked `throw` in gcov JSON.
+They occur at diagnostics, POSIX calls and the capture string append.
+Counting each partial line as uncovered gives 36/46 (78.26%), matching the
+[PR patch report](https://app.codecov.io/gh/JacobBorden/neurodeck/pull/12).
+The GCC classification is based on local data. The Codecov report independently
+shows ten partials and a failed 100% patch check.
+
+The report is diagnostic. The project-wide 80% line gate and Codecov patch
+check still apply. Post-fork exception handling needs a defined cleanup,
+reaping and diagnostic contract before treating these edges as acceptance
+cases. The coverage build uses Lua 5.4. Full Lua-disabled build support
+remains unqualified.
