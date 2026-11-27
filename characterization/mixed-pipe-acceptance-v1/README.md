@@ -55,19 +55,21 @@ executor repair history remains intact.
 ## Executor patch coverage
 
 Use this check to distinguish untested ordinary branches from unhit GCC
-exception edges. Run it from the task worktree after a clean GCC coverage build
-and CTest run. The coverage data and source must come from the same revision.
+exception edges. Run it from a task worktree with clean tracked files.
+It requires GCC with matching gcov, CMake, Ninja and Python 3.
 
 ```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
-gcov -b -j -t \
-  -o build/shell/CMakeFiles/shell.dir/commands/exec_command.cpp.gcno \
-  shell/commands/exec_command.cpp > build/exec-gcov.json
 python3 characterization/mixed-pipe-acceptance-v1/report_exec_coverage.py \
-  fef6996cae551092587ec0434d29f86138665bd6 build/exec-gcov.json
+  fef6996cae551092587ec0434d29f86138665bd6 work/exec-coverage
 ```
+
+Use a new build directory whose parent already exists. The runner configures
+and builds with coverage, records the executor line and branch layout before
+CTest, and collects counters after CTest succeeds. It rejects missing counters
+or a report whose layout differs from the baseline. The build directory
+retains both JSON files. The summary records the exact base, head, GCC version
+and measured JSON SHA-256. Use `--googletest-source` with a local copy of the
+project's pinned GoogleTest 1.12.1 source when a fetch is unavailable.
 
 On PR #12 head `5df94839374b95898dc8e9d12433886385c36d66`, GCC 15.2.1
 reported 46 measured changed lines, zero missed lines and ten partial lines.
