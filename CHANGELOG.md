@@ -3,6 +3,7 @@
 All notable changes to the Neurodeck project will be documented in this file.
 
 ## [Unreleased]
+- Fix executor binary output capture, concurrent stdout/stderr draining, interrupted waits, empty argument handling, launch descriptor cleanup, and read-error diagnostics. Add bounded regressions for empty arguments, embedded NUL bytes and large dual-stream output.
 - **Refactored & Enhanced Core Shell and Command System:**
   - Introduced `Neurodeck::CommandRegistry` for robust command management, replacing the old static registration.
   - Standardized `Neurodeck::Command` interface (namespaced, added `description()` method).

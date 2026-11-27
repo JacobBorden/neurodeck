@@ -19,7 +19,8 @@ def parse_lcov_output(lcov_output):
     return coverage_data
 
 def calculate_directory_coverage(coverage_data, directories):
-    dir_coverage = defaultdict(lambda: {'lines_hit': 0, 'lines_found': 0})
+    dir_coverage = {directory: {'lines_hit': 0, 'lines_found': 0}
+                    for directory in directories}
     for file_path, data in coverage_data.items():
         for directory in directories:
             if file_path.startswith(directory):
@@ -30,7 +31,7 @@ def calculate_directory_coverage(coverage_data, directories):
     results = {}
     for directory, data in dir_coverage.items():
         if data['lines_found'] == 0:
-            results[directory] = 100.0
+            results[directory] = None
         else:
             results[directory] = (data['lines_hit'] / data['lines_found']) * 100
     return results
@@ -56,6 +57,10 @@ def main():
 
     all_met_threshold = True
     for directory, percentage in directory_coverage_percentages.items():
+        if percentage is None:
+            print(f"ERROR: No executable line coverage data for {directory}")
+            all_met_threshold = False
+            continue
         print(f"Coverage for {directory}: {percentage:.2f}%")
         if percentage < min_percentage:
             print(f"ERROR: Coverage for {directory} ({percentage:.2f}%) is below the required {min_percentage}%")

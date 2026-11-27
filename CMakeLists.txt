@@ -6,7 +6,7 @@ project(Neurodeck VERSION 0.1 LANGUAGES CXX)
 option(ENABLE_COVERAGE "Enable code coverage" OFF) # Ensure this is here or use existing one
 
 if(ENABLE_COVERAGE)
-  if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Coverage enabled. Modifying CMAKE_CXX_FLAGS_DEBUG and CMAKE_C_FLAGS_DEBUG.")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} --coverage")
