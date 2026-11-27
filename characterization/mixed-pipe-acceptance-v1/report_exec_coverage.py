@@ -128,6 +128,8 @@ def main():
         subprocess.run(configure, check=True)
         subprocess.run(["cmake", "--build", str(build), "--parallel", "8"], check=True)
         notes = build / COVERAGE_NOTES
+        # Build-time GoogleTest discovery can itself write executor counters.
+        notes.with_suffix(".gcda").unlink(missing_ok=True)
         baseline = collect(notes, build / "exec-baseline.json", baseline=True)
         subprocess.run(
             ["ctest", "--test-dir", str(build), "--output-on-failure", "--no-tests=error", "-j", "4"],

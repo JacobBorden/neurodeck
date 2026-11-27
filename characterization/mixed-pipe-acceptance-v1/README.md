@@ -64,8 +64,9 @@ python3 characterization/mixed-pipe-acceptance-v1/report_exec_coverage.py \
 ```
 
 Use a new build directory whose parent already exists. The runner configures
-and builds with coverage, records the executor line and branch layout before
-CTest, and collects counters after CTest succeeds. It rejects missing counters
+and builds with coverage, clears any executor counters from build-time test
+discovery, and records the executor line and branch layout. It then runs CTest
+and collects its executor counters. It rejects missing counters
 or a report whose layout differs from the baseline. The build directory
 retains both JSON files. The summary records the exact base, head, GCC version
 and measured JSON SHA-256. Use `--googletest-source` with a local copy of the
